@@ -4,13 +4,25 @@
 
 실명 복원·권한·출력 재검사는 종합에서 다룹니다. 이 파일은 vault 에 접근하지 않습니다.
 LLM_API_KEY 가 없으면 검색 결과까지만 보여줍니다.
+
+.env 선택 항목
+  LLM_RETRIES=5             429(호출 한도 초과) 때 재시도 횟수
+  LLM_TIMEOUT=120           응답 대기 시간(초). HCX-007은 추론 시간이 있어 60초보다 길게
+  LLM_REASONING_EFFORT=     비우면 모델 기본값. none|low|medium|high (팀 간 비교는 비워 둘 것)
 """
 import argparse
+import os
+import re
+import time
 
 import requests
 
 from . import config
 from .search import search
+
+LLM_RETRIES = int(os.getenv("LLM_RETRIES", "5"))
+LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "120"))
+LLM_REASONING = os.getenv("LLM_REASONING_EFFORT", "").strip()
 
 SYSTEM = ("당신은 금융사 사내 문서 검색 도우미입니다. 주어진 문서 내용만 근거로 한국어로 답하세요.\n"
           "- <PERSON_...>, <PHONE_...> 같은 토큰은 가명처리된 개인정보입니다. 글자 하나도 바꾸지 말고 그대로 쓰고, 원래 값을 추측하지 마세요.\n"
@@ -23,21 +35,42 @@ SYSTEM = ("당신은 금융사 사내 문서 검색 도우미입니다. 주어�
           "공통점: 두 문서 모두 같은 고객 <PERSON_aaaa1111>의 기록임")
 
 
+def _wait_seconds(resp, attempt):
+    """429 응답 헤더의 대기 시간(초). 헤더가 없으면 10, 20, 30… 초"""
+    for h in ("retry-after", "x-ratelimit-reset-requests", "x-ratelimit-reset-tokens"):
+        m = re.match(r"\s*(\d+(?:\.\d+)?)", resp.headers.get(h, "") or "")
+        if m:
+            return max(1.0, float(m.group(1)))
+    return 10.0 * (attempt + 1)
+
+
+def _llm(messages):
+    """LLM 호출. 429면 기다렸다가 재시도하고, 그 밖의 오류는 그대로 올림"""
+    body = {"model": config.LLM_MODEL, "temperature": 0, "messages": messages}
+    if LLM_REASONING:
+        body["reasoning_effort"] = LLM_REASONING
+    for attempt in range(LLM_RETRIES + 1):
+        r = requests.post(
+            config.LLM_API_BASE.rstrip("/") + "/chat/completions",
+            headers={"Authorization": f"Bearer {config.LLM_API_KEY}"},
+            json=body, timeout=LLM_TIMEOUT)
+        if r.status_code == 429 and attempt < LLM_RETRIES:
+            wait = _wait_seconds(r, attempt)
+            print(f"  LLM 429, {wait:.0f}초 후 재시도 ({attempt + 1}/{LLM_RETRIES})")
+            time.sleep(wait)
+            continue
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"]
+
+
 def answer(query, k=3):
     masked_q, q_tokens, docs = search(query, k)
     context = "\n\n".join(f"[{d['doc_id']}]\n{d['masked_text']}" for d in docs)
     result = {"masked_query": masked_q, "query_tokens": q_tokens, "docs": docs, "answer": None}
     if not config.LLM_API_KEY:
         return result
-    r = requests.post(
-        config.LLM_API_BASE.rstrip("/") + "/chat/completions",
-        headers={"Authorization": f"Bearer {config.LLM_API_KEY}"},
-        json={"model": config.LLM_MODEL, "temperature": 0,
-              "messages": [{"role": "system", "content": SYSTEM},
-                           {"role": "user", "content": f"문서:\n{context}\n\n질문: {masked_q}"}]},
-        timeout=60)
-    r.raise_for_status()
-    result["answer"] = r.json()["choices"][0]["message"]["content"]
+    result["answer"] = _llm([{"role": "system", "content": SYSTEM},
+                             {"role": "user", "content": f"문서:\n{context}\n\n질문: {masked_q}"}])
     return result
 
 
@@ -47,6 +80,7 @@ def main():
     ap.add_argument("-k", type=int, default=3)
     a = ap.parse_args()
     res = answer(a.query, a.k)
+    print(f"LLM: {config.LLM_MODEL}")
     print(f"질의(가명처리): {res['masked_query']}")
     print("참고 문서:", ", ".join(d["doc_id"] for d in res["docs"]))
     print("\n답변:", res["answer"] or "(LLM_API_KEY 없음 — 검색 결과만 표시)")
