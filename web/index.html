@@ -42,7 +42,16 @@
   #frown{opacity:0}
   .stage.talking #mouthOpen{opacity:1;animation:talk .22s ease-in-out infinite alternate}
   .stage.talking #smile{opacity:0}
-  .stage.thinking #head{animation:think 1.4s ease-in-out infinite}
+  .stage.thinking #head{animation:rummage .9s ease-in-out infinite}
+  #pile{opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s}
+  .stage.thinking #pile{opacity:1;transform:none}
+  .paw{transform-box:fill-box;transform-origin:50% 100%}
+  .stage.thinking #pawL{animation:dig .42s ease-in-out infinite}
+  .stage.thinking #pawR{animation:dig .42s ease-in-out infinite .21s}
+  .sheet{transform-box:fill-box;transform-origin:50% 100%;opacity:0}
+  .stage.thinking .f1{animation:fly1 1.3s ease-out infinite}
+  .stage.thinking .f2{animation:fly2 1.3s ease-out infinite .45s}
+  .stage.thinking .f3{animation:fly3 1.3s ease-out infinite .9s}
   .stage.thinking .bubbles{opacity:1;animation:float 1.2s ease-in-out infinite}
   .stage.sad #smile{opacity:0}
   .stage.sad #frown{opacity:1}
@@ -89,6 +98,11 @@
   @keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
   @keyframes wag{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(10deg)}}
   @keyframes talk{from{transform:scaleY(.25)}to{transform:scaleY(1)}}
+  @keyframes rummage{0%,100%{transform:rotate(-5deg) translateY(4px)}50%{transform:rotate(5deg) translateY(6px)}}
+  @keyframes dig{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-12px) rotate(-12deg)}}
+  @keyframes fly1{0%{opacity:0;transform:translate(0,6px) rotate(0)}15%{opacity:1}100%{opacity:0;transform:translate(-46px,-70px) rotate(-55deg)}}
+  @keyframes fly2{0%{opacity:0;transform:translate(0,6px) rotate(0)}15%{opacity:1}100%{opacity:0;transform:translate(44px,-78px) rotate(60deg)}}
+  @keyframes fly3{0%{opacity:0;transform:translate(0,6px) rotate(0)}15%{opacity:1}100%{opacity:0;transform:translate(-8px,-92px) rotate(-25deg)}}
   @keyframes think{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
   @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
   @keyframes hopBig{0%,100%{transform:translateY(0)}40%{transform:translateY(-18px)}}
@@ -123,8 +137,6 @@
         <g id="body">
           <ellipse cx="100" cy="168" rx="50" ry="38" fill="#F2B457"/>
           <ellipse cx="100" cy="176" rx="28" ry="24" fill="#FFF1D6"/>
-          <ellipse cx="68" cy="198" rx="17" ry="11" fill="#F7C46C"/><ellipse cx="132" cy="198" rx="17" ry="11" fill="#F7C46C"/>
-          <path d="M62 198 v5 M68 198 v6 M74 198 v5 M126 198 v5 M132 198 v6 M138 198 v5" stroke="#C9671A" stroke-width="2" stroke-linecap="round"/>
         </g>
         <!-- 머리 -->
         <g id="head">
@@ -143,6 +155,19 @@
           <path id="frown" d="M100 103 V108 M89 114 Q100 106 111 114" stroke="#7A3E1A" stroke-width="2.6" fill="none" stroke-linecap="round"/>
           <g id="mouthOpen"><ellipse cx="100" cy="113" rx="10" ry="9" fill="#7A3E1A"/><ellipse cx="100" cy="117" rx="6" ry="4" fill="#F28C8C"/></g>
         </g>
+        <!-- 서류 더미 (검색 중에만 보임) -->
+        <g id="pile">
+          <g class="sheet fly f1"><rect x="92" y="168" width="22" height="28" rx="2" fill="#FFFDF8" stroke="#CDB894" stroke-width="1.5"/><path d="M96 176h14M96 181h14M96 186h9" stroke="#CDB894" stroke-width="1.5"/></g>
+          <g class="sheet fly f2"><rect x="96" y="170" width="22" height="28" rx="2" fill="#FFF8E8" stroke="#CDB894" stroke-width="1.5"/><path d="M100 178h14M100 183h14M100 188h9" stroke="#CDB894" stroke-width="1.5"/></g>
+          <g class="sheet fly f3"><rect x="88" y="170" width="22" height="28" rx="2" fill="#FFFDF8" stroke="#CDB894" stroke-width="1.5"/><path d="M92 178h14M92 183h14M92 188h9" stroke="#CDB894" stroke-width="1.5"/></g>
+          <rect x="58" y="194" width="84" height="14" rx="3" fill="#E9D7B5" stroke="#B89C6E" stroke-width="1.5" transform="rotate(-3 100 201)"/>
+          <rect x="62" y="186" width="78" height="12" rx="3" fill="#FFF8E8" stroke="#CDB894" stroke-width="1.5" transform="rotate(4 100 192)"/>
+          <rect x="60" y="179" width="80" height="11" rx="3" fill="#FFFDF8" stroke="#CDB894" stroke-width="1.5" transform="rotate(-2 100 184)"/>
+          <rect x="66" y="172" width="70" height="10" rx="3" fill="#F6E7CB" stroke="#CDB894" stroke-width="1.5" transform="rotate(5 100 177)"/>
+        </g>
+        <!-- 앞발 -->
+        <g id="pawL" class="paw"><ellipse cx="68" cy="198" rx="17" ry="11" fill="#F7C46C"/><path d="M62 198 v5 M68 198 v6 M74 198 v5" stroke="#C9671A" stroke-width="2" stroke-linecap="round"/></g>
+        <g id="pawR" class="paw"><ellipse cx="132" cy="198" rx="17" ry="11" fill="#F7C46C"/><path d="M126 198 v5 M132 198 v6 M138 198 v5" stroke="#C9671A" stroke-width="2" stroke-linecap="round"/></g>
       </svg>
     </div>
     <div class="ground"></div>
@@ -172,7 +197,7 @@ document.getElementById("mane").innerHTML = Array.from({length:12}, (_, i) => {
 }).join("");
 
 const EXAMPLES = ["연락처가 010-0791-2924인 건 찾아줘", "보이스피싱 피해 접수 기록 알려줘", "윤 선영 고객 대출 상담 내역 알려줘"];
-const WAIT = ["킁킁… 서류 더미를 뒤지는 중이에요", "이름표를 하나씩 맞춰보는 중이에요", "잠깐만요, 발로 서랍을 여는 중이에요"];
+const WAIT = ["킁킁… 서류 더미를 뒤지는 중이에요", "영차영차, 서류를 한 장씩 넘기는 중이에요", "이름표가 맞는 서류를 찾는 중이에요"];
 const FOUND = ["어흥! 찾았어요!", "킁킁, 냄새를 따라가 봤어요!", "어흥~ 서류 더미에서 찾아왔어요!"];
 
 const stage = document.getElementById("stage"), speech = document.getElementById("speech");
