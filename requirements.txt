@@ -5,3 +5,5 @@ requests==2.31.0
 python-dotenv==1.0.1
 torch==2.11.0
 transformers==5.20.2
+fastapi==0.162.0
+uvicorn==0.54.0
