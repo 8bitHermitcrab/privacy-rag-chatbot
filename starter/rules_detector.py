@@ -62,8 +62,27 @@ def _rest(text, end):
 
 
 def _next_word(text, j):
-    m = re.match(r"\s*\(?([가-힣]+)", text[j:])
+    # 줄바꿈은 건너지 않음: '장인상⏎⏎고객 …' 에서 다음 줄 '고객'을 호칭으로 보지 않도록
+    m = re.match(r"[ \t]*\(?([가-힣]+)", text[j:])
     return m.group(1) if m else ""
+
+
+# 호칭 뒤에 붙어도 되는 것: '과장님', '대리가', '고객은' 은 호칭, '고객센터'·'대리점' 은 호칭이 아님
+TITLE_TAIL = re.compile(r"^(?:님)?(?:께서|에게|께|은|는|이|가|을|를|의|과|와|도|만|으로|로)?$")
+# 양식 항목명에 흔한 끝 글자 ('송금인:', '배송지:', '방문처:', '소명자:') — 화자 규칙에서만 쓰는 약한 필터
+FORM_LABEL_END = set("인자처지액일명소서상호")
+
+
+def is_title_word(word):
+    """word 가 호칭·직급 하나(+조사)인가."""
+    for t in TITLES:
+        if t not in ("드림", "올림") and word.startswith(t) and TITLE_TAIL.match(word[len(t):]):
+            return True
+    return False
+
+
+def _speaker_lines(text, name):
+    return len(re.findall(rf"(?m)^{re.escape(name)}\s*:", text))
 
 
 def _strong_context(text, s, e):
@@ -72,13 +91,16 @@ def _strong_context(text, s, e):
     if rest.startswith(("님", "씨")):
         return True
     nxt = _next_word(text, j)
-    if not rest and any(nxt.startswith(t) for t in TITLES if t not in ("드림", "올림")):
+    if not rest and is_title_word(nxt):
         return True
     if not rest and re.match(r"\s*(드림|올림)\s*$", text[j:].split("\n")[0]):   # 메일 서명 '최혜진 드림'
         return True
     line_start = text.rfind("\n", 0, s) + 1
     if not rest and s == line_start and text[j:j + 1] == ":":   # 메신저 화자 '김서연: ...' (줄 맨 앞)
-        return True
+        name = text[s:e]
+        # '송금인: …' 같은 양식 항목명과 구분: 끝 글자가 항목명스러우면 화자로 두 번 이상 나올 때만 인정
+        if name[-1] not in FORM_LABEL_END or _speaker_lines(text, name) >= 2:
+            return True
     left = text[line_start:s]
     if LEFT_LABEL.search(left):
         return True

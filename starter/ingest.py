@@ -13,6 +13,10 @@ from pathlib import Path
 
 from . import config, db, pii_pipeline
 from .embed import embed
+from .person_resolver import PersonResolver
+
+
+REGISTRY_PATH = config.OUT_DIR / "person_registry.json"
 
 
 def load_docs(path, limit=None):
@@ -40,6 +44,7 @@ def main():
     ap.add_argument("--data", default=str(config.DATA_DIR / "holdout_labeled.jsonl"))
     ap.add_argument("--reset", action="store_true", help="기존 rag.chunks / vault.token_map 비우고 시작")
     ap.add_argument("--limit", type=int)
+    ap.add_argument("--no-resolver", action="store_true", help="동명이인 구분 끄기 (실전 2 방식: 이름 문자열 = 토큰)")
     ap.add_argument("--max-chars", type=int, default=600)
     a = ap.parse_args()
 
@@ -52,10 +57,20 @@ def main():
     pseudo_path = config.OUT_DIR / f"pseudo_{Path(a.data).stem}.jsonl"
 
     t0 = time.perf_counter()
-    rows, mapping, pseudo, collisions = [], {}, [], set()
+    # 1차: 탐지 + 기본 가명처리 → 동명이인 구분(resolver)이 문서 전체를 보고 사람 단위로 묶음
+    use_resolver = not a.no_resolver
+    pii_pipeline.LINK_GIVEN_NAMES = not use_resolver   # 이름만 연결은 resolver 가 역할을 보고 함
+    staged = []
     for d in docs:
         spans = pii_pipeline.detect(d["text"])
-        masked, records = pii_pipeline.pseudonymize(d["text"], spans)
+        _, records = pii_pipeline.pseudonymize(d["text"], spans)
+        staged.append({"id": d["id"], "text": d["text"], "spans": spans, "records": records})
+    resolver = PersonResolver(pii_pipeline._token).fit(staged) if use_resolver else None
+
+    rows, mapping, pseudo, collisions = [], {}, [], set()
+    for d, st in zip(docs, staged):
+        override = resolver.overrides(d["id"]) if resolver else None
+        masked, records = pii_pipeline.pseudonymize(d["text"], st["spans"], override=override)
         pseudo.append({"id": d["id"], "entities": [
             {k: r[k] for k in ("label", "start", "end", "token")} for r in records]})
         for r in records:
@@ -92,6 +107,11 @@ def main():
                ON CONFLICT (token) DO UPDATE SET originals =
                    ARRAY(SELECT DISTINCT unnest(vault.token_map.originals || EXCLUDED.originals))""",
             [(t, m["label"], m["normalized"], sorted(m["originals"])) for t, m in mapping.items()])
+
+    if resolver:   # 원문 없이 토큰·역할·소속만 담긴 레지스트리 → 질의 쪽(search)에서 동명이인 구분에 사용
+        resolver.save(REGISTRY_PATH)
+        multi = {k: v for k, v in resolver.registry.items() if len(v) > 1}
+        print(f"동명이인으로 구분된 이름 {len(multi)}개 (레지스트리: {REGISTRY_PATH})")
 
     with open(pseudo_path, "w", encoding="utf-8") as f:
         for p in pseudo:

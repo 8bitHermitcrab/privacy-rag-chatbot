@@ -26,9 +26,43 @@ POOL = int(os.getenv("SEARCH_POOL", "50"))                      # v4 의미 검�
 _COLS = "doc_id, chunk_id, masked_text, tokens, 1 - (embedding <=> %s) AS sim"
 
 
+_resolver = None
+
+
+def _get_resolver():
+    """적재 때 만든 동명이인 레지스트리 (없으면 실전 2 방식 그대로)"""
+    global _resolver
+    if _resolver is None:
+        from .ingest import REGISTRY_PATH
+        from .person_resolver import PersonResolver
+        _resolver = PersonResolver.load(REGISTRY_PATH, pii_pipeline._token) if REGISTRY_PATH.exists() else False
+    return _resolver or None
+
+
+def mask_query_detail(query):
+    """질의 가명처리 + 동명이인 처리.
+    반환: {"masked", "tokens", "homonyms": [{"original", "candidates"}]}
+      - 질의에 단서('고객', '직원', 팀명, 전화번호…)가 있으면 그 사람 토큰 하나로 좁힘
+      - 단서가 없으면 후보 토큰을 모두 검색에 쓰고 homonyms 에 남김 → 챗봇이 '동명이인이 n명 있습니다' 안내"""
+    spans = pii_pipeline.detect(query)
+    _, records = pii_pipeline.pseudonymize(query, spans)
+    res, override, tokens, homonyms = _get_resolver(), {}, set(), []
+    for r in records:
+        if r["label"] == "person" and res:
+            cands, ambiguous = res.query_candidates(query, r, records)
+            override[(r["start"], r["end"])] = cands[0]
+            tokens |= set(cands)
+            if ambiguous:
+                homonyms.append({"original": r["original"], "candidates": cands})
+        else:
+            tokens.add(r["token"])
+    masked, _ = pii_pipeline.pseudonymize(query, spans, override=override)
+    return {"masked": masked, "tokens": sorted(tokens), "homonyms": homonyms}
+
+
 def mask_query(query):
-    masked, records = pii_pipeline.pseudonymize(query, pii_pipeline.detect(query))
-    return masked, sorted({r["token"] for r in records})
+    d = mask_query_detail(query)
+    return d["masked"], d["tokens"]
 
 
 def _fetch(cur, where, params, vec, limit):

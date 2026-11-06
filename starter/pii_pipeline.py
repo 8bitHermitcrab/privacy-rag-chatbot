@@ -25,6 +25,7 @@ import re
 from pathlib import Path
 
 from . import config
+from .detect_boost import enhance
 from .rules_detector import detect as rule_detect
 
 TOKEN_PATTERN = re.compile(r"<[A-Z_]+_[0-9A-Za-z]+>")
@@ -40,6 +41,11 @@ PHONE_EXT = True
 # 실전 2에서 추가한 옵션 (실험 v5 에서 켜고 끄며 비교)
 COUNTRY_CODE_FIX = True   # '+82 10-…' 을 모델이 '10-…' 까지만 잡은 경우 '+82 ' 까지 넓히고 전화번호로 교정
 LINK_GIVEN_NAMES = True   # 같은 문서 안에서 '지영'(이름만)과 '최지영'이 함께 나오면 같은 토큰으로 묶음 (후보가 하나일 때만)
+# 종합 단계에서 추가한 옵션 (.env 로 끄고 켜며 전후 비교)
+BOOST_ADDRESS = os.getenv("PII_BOOST_ADDRESS", "1") == "1"   # 주소 경계 보정 + 지번 주소 추가
+BOOST_PERSON = os.getenv("PII_BOOST_PERSON", "1") == "1"     # 강한 문맥 규칙 이름 합치기 + 외자·이름만 + 문서 내 전파
+HYBRID = os.getenv("PII_HYBRID", "0") == "1"                # koelectra-pii 이름 보조 (hybrid_detector.py, 모델 다운로드 필요)
+ENSEMBLE = os.getenv("PII_ENSEMBLE", "1") == "1"             # 모델 글자별 확률 + 약한 규칙 후보 검증 (임계값은 tune_ensemble 로)
 
 LABELS7 = ["person", "phone_number", "email", "address",
            "resident_registration_number", "account_number", "card_number"]
@@ -279,7 +285,7 @@ def detect(text, use_model=True):
     """use_model=False 는 모델 없이 규칙 탐지기만 쓰는 비교 실험(B)용"""
     rules = rule_detect(text)
     if not use_model:
-        spans = rules
+        spans = rules + _extra_phones(text, [(r["start"], r["end"]) for r in rules]) if PHONE_EXT else rules
     else:
         sp = model_predict(text)
         if PERSON_FIX:
@@ -289,6 +295,15 @@ def detect(text, use_model=True):
     if COUNTRY_CODE_FIX:
         spans = _fix_country_code(text, spans)
     spans = [{"label": s["label"], "start": s["start"], "end": s["end"]} for s in spans if s["label"] in LABELS7]
+    if use_model and ENSEMBLE:          # 모델 확률 × 규칙 후보 앙상블 (model_ensemble.py)
+        from .model_ensemble import ensemble_persons, person_probs
+        spans = ensemble_persons(text, person_probs(text), spans)
+    if BOOST_ADDRESS or BOOST_PERSON:   # 종합 단계 보강: 주소 경계·이름 미탐·문서 내 전파 (detect_boost.py)
+        spans = enhance(text, spans, address=BOOST_ADDRESS, person=BOOST_PERSON,
+                        kiwi=globals().get("_kiwi"))   # _kiwi 가 있으면 규칙 이름 판정에 고유명사(NNP) 단서 사용
+    if use_model and HYBRID:            # RoBERTa × koelectra: 넓게 잡고 근거로 거름 (검수 목록은 detect_with_review)
+        from .hybrid_detector import combine, koelectra
+        spans = combine(text, spans, koelectra().predict(text), kiwi=globals().get("_kiwi"))[0]
     return _drop_overlaps(spans)
 
 
@@ -353,7 +368,8 @@ def _token(label, normalized):
     return f"<{prefix}_{h}>"
 
 
-def pseudonymize(text, spans):
+def pseudonymize(text, spans, override=None):
+    """override: {(start, end): token} — 동명이인 구분 등으로 토큰을 바꿀 구간 (person_resolver.overrides)"""
     spans = _drop_overlaps(spans)
     norms = [normalize(s["label"], text[s["start"]:s["end"]]) for s in spans]
 
@@ -367,7 +383,7 @@ def pseudonymize(text, spans):
 
     out, last, records = [], 0, []
     for s, n in zip(spans, norms):
-        token = _token(s["label"], n)
+        token = (override or {}).get((s["start"], s["end"])) or _token(s["label"], n)
         out += [text[last:s["start"]], token]
         last = s["end"]
         records.append({"label": s["label"], "start": s["start"], "end": s["end"],
