@@ -13,6 +13,7 @@
 """
 import argparse
 import collections
+import os
 import json
 import time
 
@@ -25,7 +26,8 @@ from tools.eval_detect_boost import score
 # ---------------------------------------------------------------- 후보 모델 (이름 → HF id, 라벨 대응)
 # 대응 값이 None 이면 버림(개인정보 아님 또는 우리 8종에 없음). 대응표에 없는 라벨은 '대응 안 됨'으로 집계.
 MODELS = {
-    "koelectra-pii": ("atonlee/koelectra-ko-pii-ner", {
+    # .env 의 PII_HYBRID_MODEL(학습한 모델 폴더)이 있으면 그 모델로 비교
+    "koelectra-pii": (os.getenv("PII_HYBRID_MODEL", "atonlee/koelectra-ko-pii-ner"), {
         "NAME": "person", "PHONE": "phone_number", "EMAIL": "email", "ADDRESS": "address", "ZIPCODE": "address",
         "RRN": "resident_registration_number", "ALIEN_ID": "resident_registration_number",
         "CARD_NUMBER": "card_number", "ACCOUNT_NUMBER": "account_number", "ORGANIZATION": "organization",

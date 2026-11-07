@@ -16,8 +16,8 @@
   5. 최종 후처리(post_filter): 성+직급('김 과장', 팀 기준으로 끄고 켬: PII_SURNAME_TITLE_IS_PII),
        경조사 용어('장인상'의 '장인'), 다른 번호 항목('사건 번호: 2026-280674')을 계좌·카드로 본 것 제거
 
-임계값·옵션은 .env 로 (PII_HYBRID_TAU_ACCEPT, PII_HYBRID_TAU_REVIEW, PII_HYBRID_DROP_UNAGREED),
-tools/compare_hf_models.py --hybrid-tau 로 dev 에서 고릅니다.
+임계값·옵션은 .env 로 (PII_HYBRID_TAU_ACCEPT, PII_HYBRID_TAU_REVIEW, PII_HYBRID_DROP_UNAGREED, PII_HYBRID_NUM_UNION),
+tools/tune_hybrid.py 로 개선용 데이터에서 고르고 다른 데이터로 확인합니다.
 """
 import os
 import re
@@ -29,6 +29,23 @@ from .rules_detector import COMPOUND, STOPWORDS, SURNAMES, is_title_word
 TAU_ACCEPT = float(os.getenv("PII_HYBRID_TAU_ACCEPT", "0.9"))
 TAU_REVIEW = float(os.getenv("PII_HYBRID_TAU_REVIEW", "0.5"))
 DROP_UNAGREED = os.getenv("PII_HYBRID_DROP_UNAGREED", "0") == "1"
+NUM_UNION = os.getenv("PII_HYBRID_NUM_UNION", "0") == "1"     # koelectra 번호류도 합치기 (형식 검증 통과 시)
+# 필터 강도: strict = 한글 2~4글자만 (기존), loose = 영문 이름·모양이 깨진 긴 구간도 허용,
+#            none = koelectra 결과를 그대로 받고 팀 기준(post_filter)만 적용, 번호는 최소 검증만
+NAME_FILTER = os.getenv("PII_HYBRID_NAME_FILTER", "strict")
+
+# 번호류 형식 검증 (일반 형식만: 자릿수·@ — 특정 값이나 문서 문구는 쓰지 않음)
+_DIGITS = re.compile(r"\d")
+NUM_OK = {
+    "phone_number": lambda w: 9 <= len(_DIGITS.findall(w)) <= 13,
+    "resident_registration_number": lambda w: len(_DIGITS.findall(w)) == 13,
+    "card_number": lambda w: 15 <= len(_DIGITS.findall(w)) <= 16,
+    "account_number": lambda w: 10 <= len(_DIGITS.findall(w)) <= 16,
+    "email": lambda w: "@" in w and "." in w.split("@")[-1],
+}
+# 최소 검증 (name_filter='none' 일 때): 숫자 4개 이상 또는 '@' — 은행 이름 '국민'처럼 숫자 없는 것만 거름.
+# 모델이 카드를 계좌로 보는 식으로 라벨을 바꿔 달아도 가려지기만 하면 노출은 막히므로 라벨별 자릿수는 보지 않음
+NUM_MIN = lambda w: "@" in w or len(_DIGITS.findall(w)) >= 4   # noqa: E731
 
 # 조직명 끝말 (일반 어휘). '○○보안', '○○시스템' 같은 회사명이 이름으로 잡히는 것 방지
 ORG_SUFFIX = re.compile(r"(?:보안|시스템|시스템즈|솔루션|컨설팅|테크|텍|소프트|네트웍스|정보통신|통신|전자|건설|물산|"
@@ -79,6 +96,8 @@ def post_filter(text, spans):
         if sp["label"] == "person":
             if not SURNAME_TITLE_IS_PII and _surname_title(core):
                 reason = "성+직급"
+            elif not SURNAME_TITLE_IS_PII and (core in SURNAMES or core in COMPOUND):
+                reason = "성만"                 # '강씨', '윤님'의 '강'·'윤' — 팀 기준: 성만으로는 개인정보 아님
             elif core in COMMON2 or EVENT_WORD.search(core) or EVENT_WORD.search(core + text[sp["end"]:sp["end"] + 1]):
                 reason = "일반어·경조사"      # '장인상'의 '장인'
         elif sp["label"] in ("account_number", "card_number"):
@@ -105,6 +124,26 @@ def single_given_ok(text, sp, min_prob=0.9):
                          text[sp["end"]:]))
 
 
+def loose_name_ok(text, sp):
+    """느슨한 이름 필터: 걸러야 확실한 것만 거름 (규칙을 줄이는 쪽)
+    - 글자(한글·영문)가 2개 미만이면 제외 — '김', '윤' 처럼 성 한 글자만 부른 것 (강사 데이터 기준: 개인정보 아님)
+    - 성 + 직급/호칭만 있으면 제외 — '심대리', '김 과장'
+    - 일반어 목록에 있으면 제외
+    그 밖은 허용 — 영문 이름('Namgoong Soo', 'David'), 모양이 깨진 긴 구간('현지이나 선우대')"""
+    w = text[sp["start"]:sp["end"]]
+    core = re.sub(r"[^가-힣A-Za-z]", "", w)
+    if len(core) < 2:
+        return single_given_ok(text, sp)
+    hangul = re.sub(r"[^가-힣]", "", w)
+    if hangul == core and (hangul in COMMON2 or hangul in STOPWORDS or hangul in GIVEN_STOP):
+        return False
+    if hangul == core and _surname_title(hangul):
+        return False
+    if len(hangul) == 1 and hangul == core:
+        return False
+    return True
+
+
 def _overlap(a, b):
     return a["start"] < b["end"] and b["start"] < a["end"]
 
@@ -129,12 +168,17 @@ def _evidence(text, sp, nnp, known):
     return why
 
 
-def combine(text, base, kspans, kiwi=None, tau_accept=None, tau_review=None, drop_unagreed=None):
+def combine(text, base, kspans, kiwi=None, tau_accept=None, tau_review=None, drop_unagreed=None, num_union=None,
+            name_filter=None):
     """base: 현재 파이프라인 결과, kspans: koelectra 결과(prob 포함) → (최종 spans, 검수 목록)"""
     tau_accept = TAU_ACCEPT if tau_accept is None else tau_accept
     tau_review = TAU_REVIEW if tau_review is None else tau_review
     drop_unagreed = DROP_UNAGREED if drop_unagreed is None else drop_unagreed
+    num_union = NUM_UNION if num_union is None else num_union
+    name_filter = NAME_FILTER if name_filter is None else name_filter
 
+    # base 의 팀 기준 오탐('김 과장', 일반어 등)을 먼저 걸러야, 그 자리와 겹친 koelectra 의 진짜 이름이 건너뛰어지지 않음
+    base, _ = post_filter(text, [dict(x) for x in base])
     k_person = [k for k in kspans if k["label"] == "person"]
     nnp = _kiwi_nnp(kiwi, text)
     base_persons = [b for b in base if b["label"] == "person"]
@@ -155,14 +199,31 @@ def combine(text, base, kspans, kiwi=None, tau_accept=None, tau_review=None, dro
         if any(_overlap(k, o) for o in out):
             continue
         name = text[k["start"]:k["end"]]
-        if not is_valid_name(name) and not single_given_ok(text, k):
+        if name_filter == "none":
+            ok = True
+        elif name_filter == "loose":
+            ok = loose_name_ok(text, k)
+        else:
+            ok = is_valid_name(name) or single_given_ok(text, k)
+        if not ok:
             continue
         why = _evidence(text, k, nnp, known)
         cand = {"label": "person", "start": k["start"], "end": k["end"]}
+        if not post_filter(text, [cand])[0]:      # 팀 기준으로 버릴 후보는 자리도 차지하지 않게
+            continue
         if why or k.get("prob", 0) >= tau_accept:
             out.append(cand)
         elif k.get("prob", 0) >= tau_review:
             review.append({**cand, "prob": round(k.get("prob", 0), 3), "source": "koelectra만", "reason": "근거 없음"})
+    # 4. (선택) koelectra 번호류: 겹치지 않고 형식 검증을 통과한 것만
+    if num_union:
+        for k in kspans:
+            if k["label"] not in NUM_OK:          # 번호류만 (이름은 위에서 처리)
+                continue
+            w = text[k["start"]:k["end"]]
+            valid = NUM_MIN(w) if name_filter == "none" else NUM_OK[k["label"]](w)
+            if valid and not any(_overlap(k, o) for o in out):
+                out.append({x: k[x] for x in ("label", "start", "end")})
     out, _ = post_filter(text, out)
     return P._drop_overlaps(_resolve(out)), review
 

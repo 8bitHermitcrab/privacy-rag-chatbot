@@ -133,7 +133,7 @@ def test_hybrid_filter_and_combine():
     pos = lambda w, p=0.95: {"label": "person", "start": t.index(w), "end": t.index(w) + len(w), "prob": p}
     base = [{"label": "person", "start": t.index("하랑"), "end": t.index("하랑") + 2}]
     ks = [pos("하랑"), pos("시우"), pos("미르보안"), pos("다온", 0.6)]
-    spans, review = combine(t, base, ks, tau_accept=0.9, tau_review=0.5)
+    spans, review = combine(t, base, ks, tau_accept=0.9, tau_review=0.5, name_filter="strict")
     got = [t[s["start"]:s["end"]] for s in spans]
     assert got == ["하랑", "시우"], got            # 미르보안은 필터, 다온은 근거 없고 확신도 낮아 검수로
     assert [t[r["start"]:r["end"]] for r in review] == ["다온"]
@@ -141,7 +141,7 @@ def test_hybrid_filter_and_combine():
     # 미동의 제거: base 에만 있고 근거 없는 이름은 검수로 빠짐
     t2 = "정다운 금융 생활을 위해. 윤선영 고객 문의"
     b2 = [{"label": "person", "start": 0, "end": 3}, {"label": "person", "start": t2.index("윤선영"), "end": t2.index("윤선영") + 3}]
-    spans, review = combine(t2, b2, [], drop_unagreed=True)
+    spans, review = combine(t2, b2, [], drop_unagreed=True, name_filter="strict")
     assert [t2[s["start"]:s["end"]] for s in spans] == ["윤선영"] and len(review) == 1
 
 
@@ -165,9 +165,9 @@ def test_hybrid_single_char_given_name():
         for _ in range(nth + 1):
             i = t.index(w, i + 1)
         return {"label": "person", "start": i, "end": i + len(w), "prob": p}
-    spans, _ = combine(t, [], [k("린"), k("김"), k("박"), k("솔"), k("린", 0.6)][:4])
+    spans, _ = combine(t, [], [k("린"), k("김"), k("박"), k("솔"), k("린", 0.6)][:4], name_filter="strict")
     assert [t[s["start"]:s["end"]] for s in spans] == ["린", "솔"]      # 성씨 한 글자(김·박)는 제외
-    spans, _ = combine(t, [], [k("린", 0.6)])
+    spans, _ = combine(t, [], [k("린", 0.6)], name_filter="strict")
     assert spans == []                                                  # 확신도 낮으면 제외
 
 
@@ -204,6 +204,68 @@ def test_resolver_single_char_given_links_to_full():
     _, rec = P.pseudonymize(t, sp, override=res.overrides("X"))
     toks = {r["original"]: r["token"] for r in rec if r["label"] == "person"}
     assert toks["반린"] == toks["린"]
+
+
+def test_hybrid_num_union_format_check():
+    from starter.hybrid_detector import combine
+    t = "입금 계좌: 110-280-674123 으로 보내 주세요.\n사건 번호: 경찰청 2026-280674\n전화 12-34"
+    k = lambda w, lab: {"label": lab, "start": t.index(w), "end": t.index(w) + len(w), "prob": 0.9}
+    ks = [k("110-280-674123", "account_number"), k("2026-280674", "account_number"), k("12-34", "phone_number")]
+    assert [t[s["start"]:s["end"]] for s in combine(t, [], ks, num_union=True, name_filter="strict")[0]] == ["110-280-674123"]
+    assert combine(t, [], ks, num_union=False, name_filter="strict")[0] == []
+
+
+def test_train_bio_labels():
+    from tools.train_ner import char_tags, token_labels
+    t = "윤선영 고객(010-1234-5678)과 김민준"
+    ents = [{"label": "person", "start": 0, "end": 3}, {"label": "phone_number", "start": 7, "end": 20},
+            {"label": "person", "start": 23, "end": 26}]
+    offs = [(0, 0), (0, 1), (1, 3), (4, 6), (7, 10), (10, 20), (23, 24), (24, 26), (0, 0)]
+    names = ["O"] + [f"{p}-{l}" for l in ["person", "phone_number"] for p in "BI"]
+    got = token_labels(offs, char_tags(t, ents, lambda l: l), {n: i for i, n in enumerate(names)})
+    assert [names[x] if x >= 0 else None for x in got] == [
+        None, "B-person", "I-person", "O", "B-phone_number", "I-phone_number", "B-person", "I-person", None]
+
+
+def test_hybrid_loose_name_filter():
+    from starter.hybrid_detector import combine
+
+    def run(t, w, filt):
+        i = t.index(w)
+        k = [{"label": "person", "start": i, "end": i + len(w), "prob": 0.97}]
+        return [t[s["start"]:s["end"]] for s in combine(t, [], k, tau_accept=0.5, name_filter=filt)[0]]
+
+    assert run("보호인 David(Park Woo) 연락처", "David", "strict") == []
+    assert run("보호인 David(Park Woo) 연락처", "David", "loose") == ["David"]          # 영문 이름 허용
+    assert run("문의는 보미이나 선우대리에게", "보미이나 선우대", "loose") == ["보미이나 선우대"]   # 깨진 구간도 가림
+    for t, w in [("명단 중 강씨, 윤님", "강"), ("그리고 심대리님 모두", "심대리"), ("한도 상향 문의", "한도")]:
+        assert run(t, w, "loose") == [], w                                               # 성만·성+직급·일반어는 제외
+
+
+def test_hybrid_none_filter():
+    from starter.hybrid_detector import combine
+    t = "보호인 David 연락처\n카드 1234567812345678 등록\n국민 계좌 확인\n명단 중 심대리님, 김 과장님께 보고"
+    k = lambda w, lab: {"label": lab, "start": t.index(w), "end": t.index(w) + len(w), "prob": 0.9}
+    ks = [k("David", "person"), k("1234567812345678", "phone_number"), k("국민", "card_number"),
+          k("심대리", "person"), k("김 과장", "person")]
+    got = [t[s["start"]:s["end"]] for s in combine(t, [], ks, tau_accept=0.5, num_union=True, name_filter="none")[0]]
+    assert got == ["David", "1234567812345678"], got      # 라벨이 틀려도 번호는 가림, 숫자 없는 '국민'·팀 기준은 제외
+    t2 = "명단 중 강씨, 윤님 확인"
+    k2 = [{"label": "person", "start": t2.index(w), "end": t2.index(w) + 1, "prob": 0.95} for w in ("강", "윤")]
+    assert combine(t2, [], k2, tau_accept=0.5, name_filter="none")[0] == []          # none 모드도 성만은 제외
+    for filt in ("strict", "loose", "none"):               # 이름·번호가 섞여 있어도 모든 모드에서 오류 없이 동작
+        combine(t, [], ks, tau_accept=0.5, num_union=True, name_filter=filt)
+
+
+def test_hybrid_base_filtered_before_overlap():
+    """base 오탐이 후처리로 지워질 때, 그 자리와 겹친 koelectra 이름이 함께 사라지지 않아야 함 (한 번 적용 = 두 번 적용)"""
+    from starter.hybrid_detector import combine
+    t = "담당 김 과장보미 님께 전달"
+    base = [{"label": "person", "start": t.index("김 과장"), "end": t.index("김 과장") + 4}]       # 성+직급 → 후처리로 제거
+    ks = [{"label": "person", "start": t.index("과장보미"), "end": t.index("과장보미") + 4, "prob": 0.95}]  # 겹치는 모델 후보
+    once, _ = combine(t, base, ks, tau_accept=0.5, name_filter="none")
+    twice, _ = combine(t, once, ks, tau_accept=0.5, name_filter="none")
+    assert once == twice and [t[s["start"]:s["end"]] for s in once] == ["과장보미"], once
 
 
 if __name__ == "__main__":
