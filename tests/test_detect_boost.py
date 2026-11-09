@@ -268,6 +268,21 @@ def test_hybrid_base_filtered_before_overlap():
     assert once == twice and [t[s["start"]:s["end"]] for s in once] == ["과장보미"], once
 
 
+def test_region_keys():
+    """지역 토큰: 시도 표기가 달라도 같은 키, 시도가 없거나 모호하면 만들지 않음"""
+    from starter.region import region_keys, region_token
+    same = ["서울시구로구 사는 고객", "서울특별시 구로구 디지털로 300", "서울 구로구에 사는", "서울시 구로구 고객"]
+    assert all(region_keys(q) == ["서울구로구"] for q in same), [region_keys(q) for q in same]
+    assert region_keys("경기도 수원시 영통구 광교로 1") == ["경기수원시"]          # 첫 시군구까지만
+    assert region_keys("경기 광주시 오포읍 1") == ["경기광주시"]
+    assert region_keys("광주시 북구 서림로 10") == region_keys("광주광역시 북구") == ["광주북구"]
+    assert region_keys("세종특별자치시 한누리대로 2130") == ["세종"]
+    for q in ("구로구 고객", "서울 대구 부산 지점", "서울 시민 대상", "경기 침체", "서대구 지점", "서울 본사 김 과장"):
+        assert region_keys(q) == [], (q, region_keys(q))
+    t = region_token("서울구로구")
+    assert t.startswith("<REGION_") and t == region_token("서울구로구") != region_token("서울강남구")
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

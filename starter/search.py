@@ -8,6 +8,11 @@
   v3 : 토큰 필터 all  — 질의 토큰을 모두 가진 청크 → 하나라도 가진 청크 → 의미 검색 순으로 채움
   v4 : 점수 결합     — 의미 점수 + SEARCH_TOKEN_WEIGHT × (질의 토큰 중 일치한 비율), 필터 없이 순위만 조정
 
+지역 토큰 (SEARCH_REGION=1, starter/region.py) — v2·v3 에만 적용
+  질의에 '시도+시군구'가 있으면 지역 토큰을 만들어 다음 순서로 채움 (지역 일치는 기존 토큰 일치보다 뒤)
+    v3: 질의 토큰+지역 모두 → 질의 토큰 모두 → 질의 토큰 하나라도 → 지역 일치 → 의미 검색
+  질의 토큰이 없고 지역만 있어도 (예: '서울시 구로구 고객 상담 내역') 지역 일치 → 의미 검색
+
 약속 (run_queries.py, chat.py 가 사용)
   search(query, k, conn=None) -> (masked_query, query_tokens, docs)
   docs: [{"doc_id", "chunk_id", "masked_text", "tokens", "score"}, ...]  순위 순서
@@ -16,7 +21,7 @@
 import argparse
 import os
 
-from . import db, pii_pipeline
+from . import db, pii_pipeline, region
 from .embed import embed
 
 SEARCH_MODE = os.getenv("SEARCH_MODE", "v2")
@@ -57,7 +62,8 @@ def mask_query_detail(query):
         else:
             tokens.add(r["token"])
     masked, _ = pii_pipeline.pseudonymize(query, spans, override=override)
-    return {"masked": masked, "tokens": sorted(tokens), "homonyms": homonyms}
+    regions = region.region_tokens(query) if region.REGION else []
+    return {"masked": masked, "tokens": sorted(tokens), "homonyms": homonyms, "regions": regions}
 
 
 def mask_query(query):
@@ -87,22 +93,29 @@ def _merge(groups, k):
 
 def search(query, k=10, conn=None, mode=None):
     mode = mode or SEARCH_MODE
-    masked_q, q_tokens = mask_query(query)
+    d = mask_query_detail(query)
+    masked_q, q_tokens, regions = d["masked"], d["tokens"], d["regions"]
     vec = embed([masked_q])[0]
     own = conn is None
     conn = conn or db.rag_conn()
     try:
         with conn.cursor() as cur:
             semantic = _fetch(cur, "", (), vec, max(k * 3, POOL))
-            if mode == "v1" or not q_tokens:
+            reghit = (_fetch(cur, "WHERE tokens && %s::text[]", (regions,), vec, k * 3)
+                      if regions and mode in ("v2", "v3") else [])
+            if mode == "v1" or not (q_tokens or reghit):
                 docs = _merge([semantic], k)
+            elif not q_tokens:                           # 지역만 있는 질의
+                docs = _merge([reghit, semantic], k)
             elif mode == "v2":
                 anyhit = _fetch(cur, "WHERE tokens && %s::text[]", (q_tokens,), vec, k * 3)
-                docs = _merge([anyhit, semantic], k)
+                docs = _merge([anyhit, reghit, semantic], k)
             elif mode == "v3":
+                both = (_fetch(cur, "WHERE tokens @> %s::text[]", (q_tokens + regions,), vec, k * 3)
+                        if regions else [])              # 예: '윤선영 고객 서울 구로구' → 그 지역의 윤선영 먼저
                 allhit = _fetch(cur, "WHERE tokens @> %s::text[]", (q_tokens,), vec, k * 3)
                 anyhit = _fetch(cur, "WHERE tokens && %s::text[]", (q_tokens,), vec, k * 3)
-                docs = _merge([allhit, anyhit, semantic], k)
+                docs = _merge([both, allhit, anyhit, reghit, semantic], k)
             elif mode == "v4":
                 anyhit = _fetch(cur, "WHERE tokens && %s::text[]", (q_tokens,), vec, POOL)
                 pool = {}
@@ -128,9 +141,11 @@ def main():
     ap.add_argument("--mode", help="v1|v2|v3|v4 (기본: .env 의 SEARCH_MODE)")
     a = ap.parse_args()
     masked_q, q_tokens, docs = search(a.query, a.k, mode=a.mode)
-    print(f"검색 모드: {a.mode or SEARCH_MODE}\n질의(가명처리): {masked_q}\n질의 토큰: {q_tokens or '없음'}\n")
+    regions = mask_query_detail(a.query)["regions"]
+    print(f"검색 모드: {a.mode or SEARCH_MODE}\n질의(가명처리): {masked_q}\n질의 토큰: {q_tokens or '없음'}"
+          f"\n지역 토큰: {regions or ('없음' if region.REGION else '꺼짐 (SEARCH_REGION=0)')}\n")
     for i, d in enumerate(docs, 1):
-        hit = "🔑" if set(d["tokens"]) & set(q_tokens) else "  "
+        hit = "🔑" if set(d["tokens"]) & set(q_tokens) else ("📍" if set(d["tokens"]) & set(regions) else "  ")
         print(f"{i}. {hit} {d['doc_id']}  score={d['score']:.3f}  tokens={d['tokens'][:4]}")
         print("   " + d["masked_text"][:120].replace("\n", " ") + " …")
 

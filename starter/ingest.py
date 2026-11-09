@@ -14,6 +14,7 @@ from pathlib import Path
 from . import config, db, pii_pipeline
 from .embed import embed
 from .person_resolver import PersonResolver
+from . import region
 
 
 REGISTRY_PATH = config.OUT_DIR / "person_registry.json"
@@ -46,6 +47,7 @@ def main():
     ap.add_argument("--limit", type=int)
     ap.add_argument("--no-resolver", action="store_true", help="동명이인 구분 끄기 (실전 2 방식: 이름 문자열 = 토큰)")
     ap.add_argument("--max-chars", type=int, default=600)
+    ap.add_argument("--no-region", action="store_true", help="SEARCH_REGION=1 이어도 지역 토큰을 만들지 않음")
     a = ap.parse_args()
 
     if pii_pipeline.IS_DEMO and config.EMBED_PROVIDER == "api":
@@ -68,6 +70,7 @@ def main():
     resolver = PersonResolver(pii_pipeline._token).fit(staged) if use_resolver else None
 
     rows, mapping, pseudo, collisions = [], {}, [], set()
+    use_region = region.REGION and not a.no_region
     for d, st in zip(docs, staged):
         override = resolver.overrides(d["id"]) if resolver else None
         masked, records = pii_pipeline.pseudonymize(d["text"], st["spans"], override=override)
@@ -78,10 +81,20 @@ def main():
             m["originals"].add(r["original"])
             if m["normalized"] != r["normalized"]:
                 collisions.add(r["token"])
+        # 지역 토큰 (SEARCH_REGION=1): 주소 토큰 → 그 주소의 '시도+시군구' 토큰. 텍스트에는 넣지 않고 tokens 에만 추가
+        addr_regions = {}
+        if use_region:
+            for r in records:
+                if r["label"] == "address":
+                    for key in region.region_keys(r["original"]):
+                        t = region.region_token(key)
+                        addr_regions.setdefault(r["token"], set()).add(t)
+                        mapping.setdefault(t, {"label": "region", "normalized": key, "originals": set()})["originals"].add(key)
         for i, c in enumerate(chunk(masked, a.max_chars)):
+            toks = set(pii_pipeline.TOKEN_PATTERN.findall(c))
+            toks |= {rt for t in toks for rt in addr_regions.get(t, ())}
             rows.append({"chunk_id": f"{d['id']}#{i}", "doc_id": d["id"], "chunk_idx": i,
-                         "doc_type": d.get("doc_type"), "masked_text": c,
-                         "tokens": sorted(set(pii_pipeline.TOKEN_PATTERN.findall(c)))})
+                         "doc_type": d.get("doc_type"), "masked_text": c, "tokens": sorted(toks)})
     t_mask = time.perf_counter() - t0
 
     t1 = time.perf_counter()
@@ -121,6 +134,9 @@ def main():
     if collisions:
         print(f"⚠ 토큰 충돌 {len(collisions)}종: 서로 다른 값이 같은 토큰을 씀 (예: {sorted(collisions)[:3]})")
     print(f"문서 {n}건 → 청크 {len(rows)}개, 토큰 {len(mapping)}종 적재")
+    if use_region:
+        n_reg = sum(1 for m in mapping.values() if m["label"] == "region")
+        print(f"지역 토큰 {n_reg}종 (시도+시군구, tokens 배열에만 추가)")
     print(f"탐지+가명처리 {t_mask * 1000 / n:.1f} ms/문서, 임베딩 {t_embed * 1000 / n:.1f} ms/문서 ({config.EMBED_PROVIDER})")
     print(f"가명처리 결과: {pseudo_path}")
 
