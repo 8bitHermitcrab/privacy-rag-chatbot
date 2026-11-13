@@ -30,6 +30,7 @@ $RECYCLE.BIN/
 .ipynb_checkpoints/
 .vscode/
 .idea/
+
 # 로컬 실험 데이터 (커밋 금지)
 data/blind/
 data/pii_synth_finance_*.jsonl
