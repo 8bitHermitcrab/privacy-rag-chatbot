@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로그인 · 어흥이 (목업)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&amp;family=Gowun+Dodum&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#8A3F0E}a:hover{color:#4A2E14}
+</style>
+</head>
+<body>
+<div style="background:#4A2E14;color:#FFF1D6;font:14px/1.6 'Gowun Dodum',sans-serif;padding:8px 16px;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center"><b style="color:#FFE3B8">화면 설계 목업 (동작 안 함 · 예시 데이터)</b><span style="opacity:.9"><a style="color:#FFE3B8" href="/mock/scenario">권한별 시나리오</a> · <a style="color:#FFE3B8" href="/mock/login" aria-current="page" style="font-weight:700">① 로그인</a> · <a style="color:#FFE3B8" href="/mock/staff">② 사원 챗봇</a> · <a style="color:#FFE3B8" href="/mock/lead">③ 팀장 챗봇 · 실명 복원</a> · <a style="color:#FFE3B8" href="/mock/review">④ 가명처리 검수</a> · <a style="color:#FFE3B8" href="/mock/admin">⑤ 관리자 권한 관리</a></span><a href="/" style="color:#FFFFFF;margin-left:auto">실제 챗봇 →</a></div>
+<div style="min-height: 900px; box-sizing: border-box; padding: 48px 24px; background: #FFF6E6; color: #4A2E14; font-family: 'Gowun Dodum', sans-serif; display: flex; align-items: center; justify-content: center">
+<div style="width: 100%; max-width: 960px; display: flex; flex-wrap: wrap; background: #FFFDF8; border: 1px solid #EED9B5; border-radius: 24px; overflow: hidden">
+<div style="flex: 1 1 360px; background: #FDE7BF; padding: 48px 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; text-align: center">
+<svg width="180" height="180" viewBox="0 0 200 200" role="img" aria-label="아기 사자 어흥이"><circle cx="100" cy="100" r="92" fill="#E8892B"/><circle cx="100" cy="100" r="74" fill="#D9771F"/><circle cx="52" cy="50" r="18" fill="#F7C46C"/><circle cx="52" cy="50" r="9" fill="#F2A35E"/><circle cx="148" cy="50" r="18" fill="#F7C46C"/><circle cx="148" cy="50" r="9" fill="#F2A35E"/><circle cx="100" cy="106" r="58" fill="#F7C46C"/><ellipse cx="100" cy="130" rx="26" ry="19" fill="#FFF1D6"/><ellipse cx="78" cy="100" rx="7" ry="9" fill="#4A2E14"/><ellipse cx="122" cy="100" rx="7" ry="9" fill="#4A2E14"/><ellipse cx="64" cy="118" rx="9" ry="5" fill="#F29C8B" opacity=".7"/><ellipse cx="136" cy="118" rx="9" ry="5" fill="#F29C8B" opacity=".7"/><path d="M92 122 Q100 117 108 122 Q100 131 92 122Z" fill="#7A3E1A"/></svg>
+<h1 style="margin: 0; font-family: 'Jua', sans-serif; font-weight: 400; font-size: 36px">아기 사자 어흥이</h1>
+<p style="margin: 0; font-size: 18px; color: #7A5634; line-height: 1.6">개인정보는 이름표로 숨기고<br>내가 볼 수 있는 기록만 찾아줘요</p>
+</div>
+<form style="flex: 1 1 360px; padding: 56px 48px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+<h2 style="margin: 0; font-family: 'Jua', sans-serif; font-weight: 400; font-size: 28px">로그인</h2>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="login-id" style="font-size: 16px">아이디</label>
+<input id="login-id" type="text" placeholder="사번 또는 아이디" style="font: inherit; font-size: 17px; padding: 14px 16px; border: 1px solid #CDB894; border-radius: 12px; background: #FFFFFF; color: #4A2E14">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="login-pw" style="font-size: 16px">비밀번호</label>
+<input id="login-pw" type="password" placeholder="비밀번호" style="font: inherit; font-size: 17px; padding: 14px 16px; border: 1px solid #CDB894; border-radius: 12px; background: #FFFFFF; color: #4A2E14">
+</div>
+<button type="submit" style="font-family: 'Jua', sans-serif; font-size: 20px; padding: 14px; border: none; border-radius: 999px; background: #A84A12; color: #FFFFFF; box-shadow: 0 3px 0 #7A3E1A; cursor: pointer">어흥! 들어가기</button>
+<div style="background: #FFF1D6; border: 1px solid #EED9B5; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+<p style="margin: 0; font-size: 15px; font-weight: 700">처음 로그인하나요?</p>
+<p style="margin: 0; font-size: 15px; color: #7A5634; line-height: 1.6">관리자가 준 임시 비밀번호로 들어온 뒤, 새 비밀번호로 바꿔야 챗봇을 쓸 수 있어요.</p>
+</div>
+<p style="margin: 0; font-size: 14px; color: #7A5634">5회 틀리면 계정이 잠겨요 · 잠금 해제는 관리자에게 요청</p>
+</form>
+</div>
+</div>
+</body>
+</html>

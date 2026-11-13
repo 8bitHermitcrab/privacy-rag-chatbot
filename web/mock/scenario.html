@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>권한별 시나리오 · 어흥이 (목업)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&amp;family=Gowun+Dodum&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#8A3F0E}a:hover{color:#4A2E14}
+</style>
+</head>
+<body>
+<div style="background:#4A2E14;color:#FFF1D6;font:14px/1.6 'Gowun Dodum',sans-serif;padding:8px 16px;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center"><b style="color:#FFE3B8">화면 설계 목업 (동작 안 함 · 예시 데이터)</b><span style="opacity:.9"><a style="color:#FFE3B8" href="/mock/scenario" aria-current="page" style="font-weight:700">권한별 시나리오</a> · <a style="color:#FFE3B8" href="/mock/login">① 로그인</a> · <a style="color:#FFE3B8" href="/mock/staff">② 사원 챗봇</a> · <a style="color:#FFE3B8" href="/mock/lead">③ 팀장 챗봇 · 실명 복원</a> · <a style="color:#FFE3B8" href="/mock/review">④ 가명처리 검수</a> · <a style="color:#FFE3B8" href="/mock/admin">⑤ 관리자 권한 관리</a></span><a href="/" style="color:#FFFFFF;margin-left:auto">실제 챗봇 →</a></div>
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 56px 64px; background: #FFF6E6; color: #4A2E14; font-family: 'Gowun Dodum', sans-serif; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; align-items: center; gap: 20px">
+<svg width="72" height="72" viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="92" fill="#E8892B"/><circle cx="100" cy="100" r="74" fill="#D9771F"/><circle cx="52" cy="50" r="18" fill="#F7C46C"/><circle cx="148" cy="50" r="18" fill="#F7C46C"/><circle cx="100" cy="106" r="58" fill="#F7C46C"/><ellipse cx="100" cy="130" rx="26" ry="19" fill="#FFF1D6"/><ellipse cx="78" cy="100" rx="7" ry="9" fill="#4A2E14"/><ellipse cx="122" cy="100" rx="7" ry="9" fill="#4A2E14"/><path d="M92 122 Q100 117 108 122 Q100 131 92 122Z" fill="#7A3E1A"/></svg>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-family: 'Jua', sans-serif; font-weight: 400; font-size: 40px">어흥이 챗봇 · 권한별 시나리오</h1>
+<p style="margin: 0; font-size: 18px; color: #7A5634">역할은 DB 설계(role_info)의 사원 · 팀장 · 관리자 세 가지 기준 · 가명처리 검수는 팀장이 자기 팀 문서만 담당한다고 가정</p>
+</div>
+</div>
+<table style="width: 100%; border-collapse: collapse; background: #FFFDF8; border: 1px solid #EED9B5; border-radius: 12px; font-size: 18px">
+<thead>
+<tr style="background: #FDE7BF; text-align: left">
+<th style="padding: 14px 18px; font-family: 'Jua', sans-serif; font-weight: 400">역할</th>
+<th style="padding: 14px 18px; font-family: 'Jua', sans-serif; font-weight: 400">검색 범위</th>
+<th style="padding: 14px 18px; font-family: 'Jua', sans-serif; font-weight: 400">실명 보기</th>
+<th style="padding: 14px 18px; font-family: 'Jua', sans-serif; font-weight: 400">가명처리 검수</th>
+<th style="padding: 14px 18px; font-family: 'Jua', sans-serif; font-weight: 400">계정 · 권한 관리</th>
+<th style="padding: 14px 18px; font-family: 'Jua', sans-serif; font-weight: 400">쓰는 화면</th>
+</tr>
+</thead>
+<tbody>
+<tr style="border-top: 1px solid #EED9B5">
+<td style="padding: 14px 18px"><b>사원</b></td><td style="padding: 14px 18px">내 담당 문서</td><td style="padding: 14px 18px">불가 · 팀장에게 복원 요청</td><td style="padding: 14px 18px">불가</td><td style="padding: 14px 18px">불가</td><td style="padding: 14px 18px">① ②</td>
+</tr>
+<tr style="border-top: 1px solid #EED9B5">
+<td style="padding: 14px 18px"><b>팀장</b></td><td style="padding: 14px 18px">우리 팀 문서</td><td style="padding: 14px 18px">가능 · 사유 입력, 이력 기록</td><td style="padding: 14px 18px">우리 팀 문서 검수</td><td style="padding: 14px 18px">불가</td><td style="padding: 14px 18px">① ③ ④</td>
+</tr>
+<tr style="border-top: 1px solid #EED9B5">
+<td style="padding: 14px 18px"><b>관리자</b></td><td style="padding: 14px 18px">문서 검색 없음</td><td style="padding: 14px 18px">불가</td><td style="padding: 14px 18px">통계만 확인</td><td style="padding: 14px 18px">가능 · 사유 입력, 이력 기록</td><td style="padding: 14px 18px">① ⑤</td>
+</tr>
+</tbody>
+</table>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+<div style="background: #FFFDF8; border: 1px solid #EED9B5; border-radius: 16px; padding: 24px 28px; display: flex; flex-direction: column; gap: 12px">
+<p style="margin: 0; font-family: 'Jua', sans-serif; font-size: 24px">시나리오 1 · 사원</p>
+<p style="margin: 0; font-size: 16px; color: #7A5634">"내가 맡은 고객 상담 기록을 찾고 싶어요"</p>
+<ol style="margin: 0; padding-left: 22px; font-size: 17px; line-height: 1.8">
+<li>로그인 → 첫 로그인이면 비밀번호 변경</li>
+<li>어흥이에게 질문 → 내 담당 문서에서만 검색</li>
+<li>답변 속 개인정보는 이름표(토큰)로 표시</li>
+<li>실명이 꼭 필요하면 사유를 적어 팀장에게 복원 요청</li>
+<li>요청 상태(대기 · 승인 · 반려) 알림 확인</li>
+</ol>
+</div>
+<div style="background: #FFFDF8; border: 1px solid #EED9B5; border-radius: 16px; padding: 24px 28px; display: flex; flex-direction: column; gap: 12px">
+<p style="margin: 0; font-family: 'Jua', sans-serif; font-size: 24px">시나리오 2 · 팀장</p>
+<p style="margin: 0; font-size: 16px; color: #7A5634">"팀원 요청을 처리하고, 가명처리가 맞는지 확인해요"</p>
+<ol style="margin: 0; padding-left: 22px; font-size: 17px; line-height: 1.8">
+<li>우리 팀 문서에서 검색 · 이름표 클릭 → 사유 입력 후 실명 보기</li>
+<li>팀원 복원 요청 승인 또는 반려</li>
+<li>검수 화면에서 탐지기가 애매해한 항목 확인</li>
+<li>원문을 보고 개인정보 맞음 · 아님 · 범위 수정 판단</li>
+<li>확정하면 문서를 다시 가명처리해 적재</li>
+</ol>
+</div>
+<div style="background: #FFFDF8; border: 1px solid #EED9B5; border-radius: 16px; padding: 24px 28px; display: flex; flex-direction: column; gap: 12px">
+<p style="margin: 0; font-family: 'Jua', sans-serif; font-size: 24px">시나리오 3 · 관리자</p>
+<p style="margin: 0; font-size: 16px; color: #7A5634">"계정과 권한을 관리하지만 문서는 보지 않아요"</p>
+<ol style="margin: 0; padding-left: 22px; font-size: 17px; line-height: 1.8">
+<li>새 직원 계정 만들기 (임시 비밀번호)</li>
+<li>역할 · 팀 지정, 확인 대기 직원 정보 확정</li>
+<li>역할 변경 · 계정 잠금은 사유 필수</li>
+<li>모든 변경은 권한 변경 이력에 기록</li>
+<li>검수 · 복원 통계만 보고 이상 징후 확인</li>
+</ol>
+</div>
+</div>
+<div style="display: flex; gap: 16px; flex-wrap: wrap">
+<p style="margin: 0; background: #FFE3B8; color: #8A3F0E; padding: 10px 18px; border-radius: 999px; font-size: 16px">관리자는 문서 내용과 실명을 보지 않음</p>
+<p style="margin: 0; background: #FFE3B8; color: #8A3F0E; padding: 10px 18px; border-radius: 999px; font-size: 16px">실명 복원 · 권한 변경은 모두 사유와 이력이 남음</p>
+<p style="margin: 0; background: #FFE3B8; color: #8A3F0E; padding: 10px 18px; border-radius: 999px; font-size: 16px">검수 결과는 탐지기 개선 데이터로 다시 쓰임</p>
+<p style="margin: 0; background: #FFE3B8; color: #8A3F0E; padding: 10px 18px; border-radius: 999px; font-size: 16px">LLM에는 항상 가명처리된 텍스트만 전달</p>
+</div>
+</div>
+</body>
+</html>

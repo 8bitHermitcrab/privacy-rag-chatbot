@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>관리자 권한 관리 · 어흥이 (목업)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&amp;family=Gowun+Dodum&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#8A3F0E}a:hover{color:#4A2E14}
+</style>
+</head>
+<body>
+<div style="background:#4A2E14;color:#FFF1D6;font:14px/1.6 'Gowun Dodum',sans-serif;padding:8px 16px;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center"><b style="color:#FFE3B8">화면 설계 목업 (동작 안 함 · 예시 데이터)</b><span style="opacity:.9"><a style="color:#FFE3B8" href="/mock/scenario">권한별 시나리오</a> · <a style="color:#FFE3B8" href="/mock/login">① 로그인</a> · <a style="color:#FFE3B8" href="/mock/staff">② 사원 챗봇</a> · <a style="color:#FFE3B8" href="/mock/lead">③ 팀장 챗봇 · 실명 복원</a> · <a style="color:#FFE3B8" href="/mock/review">④ 가명처리 검수</a> · <a style="color:#FFE3B8" href="/mock/admin" aria-current="page" style="font-weight:700">⑤ 관리자 권한 관리</a></span><a href="/" style="color:#FFFFFF;margin-left:auto">실제 챗봇 →</a></div>
+<div style="min-height: 980px; background: #FFF6E6; color: #4A2E14; font-family: 'Gowun Dodum', sans-serif; display: flex; flex-wrap: wrap">
+<nav aria-label="메뉴" style="flex: 1 1 220px; max-width: 260px; min-width: 200px; background: #FDE7BF; padding: 28px 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 10px; padding-bottom: 20px">
+<svg width="44" height="44" viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="92" fill="#E8892B"/><circle cx="100" cy="100" r="74" fill="#D9771F"/><circle cx="52" cy="50" r="18" fill="#F7C46C"/><circle cx="148" cy="50" r="18" fill="#F7C46C"/><circle cx="100" cy="106" r="58" fill="#F7C46C"/><ellipse cx="100" cy="130" rx="26" ry="19" fill="#FFF1D6"/><ellipse cx="78" cy="100" rx="7" ry="9" fill="#4A2E14"/><ellipse cx="122" cy="100" rx="7" ry="9" fill="#4A2E14"/><path d="M92 122 Q100 117 108 122 Q100 131 92 122Z" fill="#7A3E1A"/></svg>
+<span style="font-family: 'Jua', sans-serif; font-size: 22px">어흥이 관리</span>
+</div>
+<a href="#" style="text-decoration: none; color: #FFFFFF; background: #A84A12; border-radius: 12px; padding: 12px 14px; font-size: 17px">계정 · 권한 관리</a>
+<a href="#" style="text-decoration: none; color: #4A2E14; border-radius: 12px; padding: 12px 14px; font-size: 17px">확인 대기 <span style="background: #FFFDF8; border-radius: 999px; padding: 2px 8px; font-size: 14px">7</span></a>
+<a href="#" style="text-decoration: none; color: #4A2E14; border-radius: 12px; padding: 12px 14px; font-size: 17px">권한 변경 이력</a>
+<a href="#" style="text-decoration: none; color: #4A2E14; border-radius: 12px; padding: 12px 14px; font-size: 17px">검수 · 복원 통계</a>
+<div style="flex: 1"></div>
+<div style="background: #FFFDF8; border: 1px solid #EED9B5; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 14px; color: #7A5634">로그인한 사람</span>
+<span style="font-size: 16px"><b>관리자</b></span>
+<span style="font-size: 13px; color: #7A5634">문서 검색 · 실명 보기 없음</span>
+</div>
+</nav>
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<h1 style="margin: 0; font-family: 'Jua', sans-serif; font-weight: 400; font-size: 26px">계정 · 권한 관리</h1>
+<div style="flex: 1"></div>
+<button type="button" style="font-family: 'Jua', sans-serif; font-size: 17px; border: none; border-radius: 999px; padding: 12px 22px; background: #A84A12; color: #FFFFFF; box-shadow: 0 3px 0 #7A3E1A; cursor: pointer">+ 새 계정 만들기</button>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+<div style="background: #FFFDF8; border: 1px solid #EED9B5; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; color: #7A5634">활성 계정</span><span style="font-family: 'Jua', sans-serif; font-size: 28px">38</span></div>
+<div style="background: #FFFDF8; border: 1px solid #EED9B5; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; color: #7A5634">직원 · 문서 확인 대기</span><span style="font-family: 'Jua', sans-serif; font-size: 28px; color: #A84A12">7</span></div>
+<div style="background: #FFFDF8; border: 1px solid #EED9B5; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; color: #7A5634">잠긴 계정</span><span style="font-family: 'Jua', sans-serif; font-size: 28px">1</span></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; flex: 1">
+<section aria-label="계정 목록" style="flex: 3 1 480px; min-width: 0; background: #FFFDF8; border: 1px solid #EED9B5; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<label for="ad-search" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">계정 검색</label>
+<input id="ad-search" placeholder="아이디 · 직원번호로 찾기" style="flex: 1 1 200px; font: inherit; font-size: 15px; padding: 10px 14px; border: 1px solid #CDB894; border-radius: 999px; background: #FFFFFF; color: #4A2E14">
+<label for="ad-team" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">팀</label>
+<select id="ad-team" style="font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid #CDB894; border-radius: 999px; background: #FFFFFF; color: #4A2E14"><option>모든 팀</option><option>영업1팀</option><option>고객지원팀</option></select>
+<label for="ad-role" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">역할</label>
+<select id="ad-role" style="font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid #CDB894; border-radius: 999px; background: #FFFFFF; color: #4A2E14"><option>모든 역할</option><option>사원</option><option>팀장</option><option>관리자</option></select>
+</div>
+<div style="overflow-x: auto">
+<table style="width: 100%; min-width: 620px; border-collapse: collapse; font-size: 15px">
+<thead><tr style="background: #FDE7BF; text-align: left">
+<th style="padding: 10px 12px; font-weight: 700">아이디</th><th style="padding: 10px 12px; font-weight: 700">직원번호</th><th style="padding: 10px 12px; font-weight: 700">팀</th><th style="padding: 10px 12px; font-weight: 700">역할</th><th style="padding: 10px 12px; font-weight: 700">상태</th><th style="padding: 10px 12px; font-weight: 700">마지막 로그인</th>
+</tr></thead>
+<tbody>
+<tr style="border-top: 1px solid #EED9B5; background: #FFF1D6"><td style="padding: 10px 12px">sales_0142</td><td style="padding: 10px 12px">E-0142</td><td style="padding: 10px 12px">영업1팀</td><td style="padding: 10px 12px">사원</td><td style="padding: 10px 12px; color: #2F5A2E">활성</td><td style="padding: 10px 12px">오늘 09:12</td></tr>
+<tr style="border-top: 1px solid #EED9B5"><td style="padding: 10px 12px">sales_0007</td><td style="padding: 10px 12px">E-0007</td><td style="padding: 10px 12px">영업1팀</td><td style="padding: 10px 12px">팀장</td><td style="padding: 10px 12px; color: #2F5A2E">활성</td><td style="padding: 10px 12px">오늘 08:47</td></tr>
+<tr style="border-top: 1px solid #EED9B5"><td style="padding: 10px 12px">cs_0210</td><td style="padding: 10px 12px">E-0210</td><td style="padding: 10px 12px">고객지원팀</td><td style="padding: 10px 12px">사원</td><td style="padding: 10px 12px; color: #8A3F0E">잠김 (비밀번호 5회)</td><td style="padding: 10px 12px">어제</td></tr>
+<tr style="border-top: 1px solid #EED9B5"><td style="padding: 10px 12px">cs_0231</td><td style="padding: 10px 12px">E-0231</td><td style="padding: 10px 12px">고객지원팀</td><td style="padding: 10px 12px">사원</td><td style="padding: 10px 12px; color: #7A5634">첫 로그인 전</td><td style="padding: 10px 12px">-</td></tr>
+</tbody>
+</table>
+</div>
+<p style="margin: 0; font-size: 14px; color: #7A5634">직원 실명은 표시하지 않아요 · 직원번호와 팀으로 구분</p>
+</section>
+<section aria-label="권한 변경" style="flex: 2 1 320px; min-width: 0; background: #FFFFFF; border: 2px solid #A84A12; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-family: 'Jua', sans-serif; font-weight: 400; font-size: 20px">sales_0142 권한 바꾸기</h2>
+<label for="ad-newrole" style="font-size: 15px">역할</label>
+<select id="ad-newrole" style="font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid #CDB894; border-radius: 10px; background: #FFFFFF; color: #4A2E14"><option>사원 → 팀장</option><option>사원 유지</option></select>
+<label for="ad-newteam" style="font-size: 15px">팀</label>
+<select id="ad-newteam" style="font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid #CDB894; border-radius: 10px; background: #FFFFFF; color: #4A2E14"><option>영업1팀</option><option>고객지원팀</option></select>
+<label for="ad-status" style="font-size: 15px">계정 상태</label>
+<select id="ad-status" style="font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid #CDB894; border-radius: 10px; background: #FFFFFF; color: #4A2E14"><option>활성</option><option>휴면</option><option>잠김</option><option>퇴사</option></select>
+<label for="ad-why" style="font-size: 15px">변경 사유 (필수)</label>
+<textarea id="ad-why" rows="2" placeholder="예: 11월 인사발령 팀장 승진" style="font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid #CDB894; border-radius: 10px; background: #FFFFFF; color: #4A2E14; resize: vertical"></textarea>
+<div style="background: #FFF1D6; border-radius: 10px; padding: 10px 12px; font-size: 14px; color: #7A5634; line-height: 1.6">팀장이 되면 영업1팀 문서 검색, 실명 복원, 가명처리 검수가 가능해져요.</div>
+<div style="display: flex; gap: 8px">
+<button type="button" style="flex: 1; font-family: 'Jua', sans-serif; font-size: 17px; border: none; border-radius: 999px; padding: 12px; background: #A84A12; color: #FFFFFF; cursor: pointer">저장</button>
+<button type="button" style="font: inherit; font-size: 15px; border: 1px solid #CDB894; border-radius: 999px; padding: 12px 16px; background: #FFFDF8; color: #4A2E14; cursor: pointer">비밀번호 초기화</button>
+</div>
+<div style="border-top: 1px solid #EED9B5; padding-top: 10px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 15px; font-weight: 700">이 계정의 변경 이력</span>
+<span style="font-size: 14px; color: #7A5634">11/03 · 계정 생성 · 관리자 · 신규 입사</span>
+<span style="font-size: 14px; color: #7A5634">11/03 · 팀 지정 영업1팀 · 관리자 · 부서 배치</span>
+</div>
+</section>
+</div>
+</main>
+</div>
+</body>
+</html>

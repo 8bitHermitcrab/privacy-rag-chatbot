@@ -4,6 +4,7 @@
     uvicorn server:app --port 8000
     → 브라우저에서 http://127.0.0.1:8000         (아기 사자 어흥이 버전, 기본)
                   http://127.0.0.1:8000/simple  (심플 버전)
+                  http://127.0.0.1:8000/mock    (권한별 화면 설계 목업: 로그인·사원·팀장·검수·관리자)
 
 - 검색·답변은 app.py 와 같은 starter.chat.answer 를 그대로 사용 (프롬프트 ③, SEARCH_MODE=v3)
 - 화면에는 가명처리된 질의·문서·답변만 보내고, 토큰은 복원하지 않습니다
@@ -14,7 +15,7 @@ import os
 os.environ.setdefault("SEARCH_MODE", "v3")
 
 import requests
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -26,6 +27,8 @@ app = FastAPI(title="가명처리 검색 챗봇")
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 LION = os.path.join(WEB_DIR, "index.html")      # 어흥이 버전 (기본)
 SIMPLE = os.path.join(WEB_DIR, "simple.html")   # 심플 버전
+MOCK_DIR = os.path.join(WEB_DIR, "mock")        # 화면 설계 목업 (정적 HTML, API 연결 전)
+MOCK_PAGES = {"scenario", "login", "staff", "lead", "review", "admin"}
 
 
 class Ask(BaseModel):
@@ -41,6 +44,14 @@ def index():
 @app.get("/simple")
 def simple():
     return FileResponse(SIMPLE)
+
+
+@app.get("/mock")
+@app.get("/mock/{name}")
+def mock(name: str = "scenario"):
+    if name not in MOCK_PAGES:                  # 목록에 있는 이름만 (경로 조작 방지)
+        raise HTTPException(status_code=404)
+    return FileResponse(os.path.join(MOCK_DIR, f"{name}.html"))
 
 
 @app.get("/api/info")
