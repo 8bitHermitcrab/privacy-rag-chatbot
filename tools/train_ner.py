@@ -5,10 +5,15 @@
         --train data/dev.jsonl --eval data/pii_synth_finance_gen_hard_dev.jsonl --out models/koelectra_ft
     #   → .env:  PII_HYBRID_MODEL=models/koelectra_ft
 
-    # B. KLUE-RoBERTa-small 다시 학습: 파이프라인 라벨(B-person 등)로 → 기존 RoBERTa 모델 교체
+    # B. KLUE-RoBERTa-small 처음부터 학습: 파이프라인 라벨(B-person 등)로 → 기존 RoBERTa 모델 교체
     python -m tools.train_ner --base klue/roberta-small \\
         --train data/dev.jsonl --eval data/pii_synth_finance_gen_hard_dev.jsonl --out models/roberta_small_v2
     #   → .env:  PII_MODEL_DIR=models/roberta_small_v2
+
+    # C. 기존 RoBERTa(models/roberta_small_v1) 이어 학습: 우리 라벨 체계 그대로 (--keep-labels)
+    python -m tools.train_ner --base models/roberta_small_v1 --keep-labels \\
+        --train data/pii_synth_finance_dev.jsonl data/synth_train_10k.jsonl \\
+        --eval data/pii_synth_finance_gen_hard_eval.jsonl --out models/roberta_small_ft --lr 2e-5
 
 데이터 형식: 우리 jsonl (text + entities[label, start, end]). 여러 파일은 --train a.jsonl b.jsonl
 ⚠ 학습에 쓸 데이터 범위(dev 만? 개선용 hard_dev 도?)는 팀 조건·강사님 확인을 따르세요.
@@ -149,15 +154,22 @@ def main():
         torch.set_num_threads(a.threads)
 
     tok = AutoTokenizer.from_pretrained(a.base)
+    own = False   # 시작 모델이 이미 우리 라벨(B-person 등)로 학습된 모델인지 (예: models/roberta_small_v1)
     if a.keep_labels:
         model = AutoModelForTokenClassification.from_pretrained(a.base)
         label2id = {v: int(k) for k, v in model.config.id2label.items()}
         if "O" not in label2id:
             raise SystemExit("시작 모델 라벨에 'O' 가 없습니다. --keep-labels 없이 실행하세요.")
-        name_of = OURS_TO_KO.get
-        missing = [f"B-{v}" for v in OURS_TO_KO.values() if f"B-{v}" not in label2id]
-        if missing:
-            raise SystemExit(f"시작 모델에 없는 라벨: {missing}")
+        own = any(f"B-{l}" in label2id for l in LABELS7)
+        if own:
+            # 우리 라벨 그대로 이어 학습 (분류층·라벨 순서 유지)
+            name_of = lambda l: l if f"B-{l}" in label2id else None   # noqa: E731
+            print("시작 모델이 우리 라벨 체계 → 그대로 이어 학습:", sorted(l for l in LABELS7 if f"B-{l}" in label2id))
+        else:
+            name_of = OURS_TO_KO.get
+            missing = [f"B-{v}" for v in OURS_TO_KO.values() if f"B-{v}" not in label2id]
+            if missing:
+                raise SystemExit(f"시작 모델에 없는 라벨: {missing}")
     else:
         names = ["O"] + [f"{p}-{l}" for l in LABELS7 for p in ("B", "I")]
         label2id = {n: i for i, n in enumerate(names)}
@@ -177,7 +189,7 @@ def main():
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: max(0.0, 1 - s / max(steps, 1)))
 
     if eval_docs:
-        r = evaluate(model, tok, eval_docs, a.keep_labels)
+        r = evaluate(model, tok, eval_docs, a.keep_labels and not own)
         print(f"[학습 전] 재현율 {r['재현율']:.3f} 노출 {r['노출']} (이름 {r['이름노출']}) 오탐 {r['오탐']}")
     best = None
     for ep in range(1, a.epochs + 1):
@@ -193,7 +205,7 @@ def main():
             tot += out.loss.item()
         msg = f"[에폭 {ep}] 손실 {tot:.2f} ({time.perf_counter() - t0:.0f}초)"
         if eval_docs:
-            r = evaluate(model, tok, eval_docs, a.keep_labels)
+            r = evaluate(model, tok, eval_docs, a.keep_labels and not own)
             msg += f" | 재현율 {r['재현율']:.3f} 노출 {r['노출']} (이름 {r['이름노출']}) 오탐 {r['오탐']}"
             if best is None or (r["노출"], r["오탐"]) < (best["노출"], best["오탐"]):
                 best = {**r, "epoch": ep}
@@ -205,7 +217,7 @@ def main():
         model.save_pretrained(a.out)
         tok.save_pretrained(a.out)
     Path(a.out, "train_info.json").write_text(json.dumps(
-        {"base": a.base, "keep_labels": a.keep_labels, "train": a.train, "eval": a.eval, "epochs": a.epochs,
+        {"base": a.base, "keep_labels": a.keep_labels, "own_labels": own, "train": a.train, "eval": a.eval, "epochs": a.epochs,
          "lr": lr, "best": best}, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"\n저장: {a.out}" + (f" (에폭 {best['epoch']}, 노출 {best['노출']}, 미탐 유형 {best['미탐유형']})" if best else ""))
 

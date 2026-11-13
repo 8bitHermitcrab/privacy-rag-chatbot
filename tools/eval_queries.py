@@ -51,7 +51,9 @@ def main():
     ap.add_argument("--queries", default="data/queries30.jsonl")
     ap.add_argument("--mode", default=os.getenv("SEARCH_MODE", "v3"))
     ap.add_argument("-k", type=int, default=10)
+    ap.add_argument("--tag", default="", help="결과 파일 이름 뒤에 붙일 이름 (예: v6 → queries30_eval_v3_v6.md)")
     a = ap.parse_args()
+    name = f"{a.mode}_{a.tag}" if a.tag else a.mode
 
     from starter import db
     from starter.search import search
@@ -71,7 +73,7 @@ def main():
             sys.exit(f"DB에 없는 문서 ID: {', '.join(bad)}")
     out_dir = os.path.join(ROOT, "deliverables")
     os.makedirs(out_dir, exist_ok=True)
-    run_path = os.path.join(out_dir, f"run_queries30_{a.mode}.jsonl")
+    run_path = os.path.join(out_dir, f"run_queries30_{name}.jsonl")
     runs, t0 = [], time.time()
     conn = db.rag_conn()
     try:
@@ -90,9 +92,9 @@ def main():
     gold = {q["qid"]: q for q in qs}
     overall, by_type, per_q = evaluate(runs, gold)
     masked = {r["qid"]: r for r in runs}
-    L = [f"# 검색 질의 {len(qs)}개 평가 결과 — {a.mode}", "",
+    L = [f"# 검색 질의 {len(qs)}개 평가 결과 — {name}", "",
          f"질의 파일: `{a.queries}` · 검색 상위 {a.k}개 · 질의당 {sec * 1000:.0f} ms", "",
-         "## 전체", "", table([(a.mode, overall)], "모드"), "",
+         "## 전체", "", table([(name, overall)], "모드"), "",
          "## 유형별", "", table(list(by_type.items()), "유형"), "",
          "## 질의별", "",
          "| qid | 유형 | 가명처리된 질의 | 질의 토큰 | 정답 수 | 첫 정답 순위 | Hit@5 |",
@@ -103,7 +105,7 @@ def main():
                  f"{s['n_rel']} | {s['first'] or '없음'} | {'O' if s['hit5'] else 'X'} |")
     no_tok = [s["qid"] for s in per_q if s["n_tokens"] == 0]
     L += ["", f"질의 토큰이 없는 질의 {len(no_tok)}개 (개인정보가 없는 질의이거나 질의 쪽 미탐): {', '.join(no_tok) or '없음'}"]
-    rep = os.path.join(out_dir, f"queries30_eval_{a.mode}.md")
+    rep = os.path.join(out_dir, f"queries30_eval_{name}.md")
     open(rep, "w", encoding="utf-8").write("\n".join(L) + "\n")
     print(f"\n{rep}\n  Hit@1 {overall['hit1']:.3f} · Hit@5 {overall['hit5']:.3f} · MRR {overall['mrr']:.3f}"
           f" · Confuse@10 {overall['conf'] if overall['conf'] is None else round(overall['conf'], 3)}")

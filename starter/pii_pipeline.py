@@ -282,7 +282,12 @@ def _drop_overlaps(spans):
 
 # ================================================================ 3. detect
 def detect(text, use_model=True):
-    """use_model=False 는 모델 없이 규칙 탐지기만 쓰는 비교 실험(B)용"""
+    """use_model=False 는 모델 없이 규칙 탐지기만 쓰는 비교 실험(B)용
+    PII_SPANS_CACHE 가 설정되면 외부 탐지기 결과를 그대로 씀 (starter/span_cache.py, 검색 비교용)"""
+    from .span_cache import lookup
+    cached = lookup(text)
+    if cached is not None:
+        return _drop_overlaps(cached)
     rules = rule_detect(text)
     if not use_model:
         spans = rules + _extra_phones(text, [(r["start"], r["end"]) for r in rules]) if PHONE_EXT else rules

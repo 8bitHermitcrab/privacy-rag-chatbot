@@ -1,0 +1,209 @@
+diff --git a/starter/pii_pipeline.py b/starter/pii_pipeline.py
+index 6cee598..ab82cb9 100644
+--- a/starter/pii_pipeline.py
++++ b/starter/pii_pipeline.py
+@@ -282,7 +282,12 @@ def _drop_overlaps(spans):
+ 
+ # ================================================================ 3. detect
+ def detect(text, use_model=True):
+-    """use_model=False 는 모델 없이 규칙 탐지기만 쓰는 비교 실험(B)용"""
++    """use_model=False 는 모델 없이 규칙 탐지기만 쓰는 비교 실험(B)용
++    PII_SPANS_CACHE 가 설정되면 외부 탐지기 결과를 그대로 씀 (starter/span_cache.py, 검색 비교용)"""
++    from .span_cache import lookup
++    cached = lookup(text)
++    if cached is not None:
++        return _drop_overlaps(cached)
+     rules = rule_detect(text)
+     if not use_model:
+         spans = rules + _extra_phones(text, [(r["start"], r["end"]) for r in rules]) if PHONE_EXT else rules
+diff --git a/starter/span_cache.py b/starter/span_cache.py
+new file mode 100644
+index 0000000..af07ce8
+--- /dev/null
++++ b/starter/span_cache.py
+@@ -0,0 +1,56 @@
++"""외부 탐지기 결과로 detect() 를 대신하기 (검색 비교용: 탐지기만 바꾸고 나머지는 그대로)
++
++    PII_SPANS_CACHE=outputs/spans_v6.jsonl python -m starter.ingest --data data/holdout_labeled.jsonl --reset
++
++- 캐시 파일은 tools/build_span_cache.py 로 만듭니다. 한 줄 = {"sha": 원문 sha256, "entities": [...]} (원문 없음)
++- PII_SPANS_CACHE 가 설정되면 pii_pipeline.detect() 가 모델을 돌리지 않고 캐시의 위치를 그대로 씁니다.
++- 캐시에 없는 텍스트가 들어오면 바로 오류를 냅니다 (우리 탐지기가 몰래 섞이지 않도록).
++  PII_SPANS_FALLBACK=1 이면 대신 원래 detect() 로 넘어갑니다 (권장하지 않음).
++- PII_SPANS_FILTER=1 이면 캐시 결과에 팀 기준 필터(hybrid_detector.post_filter: 성+직급·성만·일반어 제거)를 적용합니다.
++"""
++import hashlib
++import json
++import os
++
++PATHS = [p for p in os.getenv("PII_SPANS_CACHE", "").split(",") if p.strip()]
++FALLBACK = os.getenv("PII_SPANS_FALLBACK", "0") == "1"
++TEAM_FILTER = os.getenv("PII_SPANS_FILTER", "0") == "1"
++_cache = None
++
++
++def sha(text):
++    return hashlib.sha256(text.encode("utf-8")).hexdigest()
++
++
++def _load():
++    global _cache
++    if _cache is None:
++        _cache = {}
++        for p in PATHS:
++            with open(p.strip(), encoding="utf-8") as f:
++                for line in f:
++                    if line.strip():
++                        d = json.loads(line)
++                        _cache[d["sha"]] = d["entities"]
++        print(f"[span_cache] {', '.join(PATHS)} 에서 텍스트 {len(_cache)}개 위치 사용 (모델 탐지 안 함"
++              f"{', 팀 기준 필터 적용' if TEAM_FILTER else ''})")
++    return _cache
++
++
++def lookup(text):
++    """캐시 사용 중이 아니면 None. 사용 중이면 spans 리스트 (없으면 오류 또는 None)"""
++    if not PATHS:
++        return None
++    hit = _load().get(sha(text))
++    if hit is None:
++        hit = _load().get(sha(text.rstrip()))
++    if hit is None:
++        if FALLBACK:
++            return None
++        raise KeyError(f"[span_cache] 캐시에 없는 텍스트 (sha {sha(text)[:12]}…, {len(text)}자). "
++                       "build_span_cache.py 의 --source 에 이 텍스트가 들어 있는 파일을 넣었는지 확인하세요.")
++    spans = [dict(s) for s in hit if s["end"] <= len(text)]
++    if TEAM_FILTER:
++        from .hybrid_detector import post_filter
++        spans, _ = post_filter(text, spans)
++    return spans
+diff --git a/tools/build_span_cache.py b/tools/build_span_cache.py
+new file mode 100644
+index 0000000..bea9387
+--- /dev/null
++++ b/tools/build_span_cache.py
+@@ -0,0 +1,79 @@
++"""외부 탐지기 예측 파일 → 검색 비교용 위치 캐시 (starter/span_cache.py 입력)
++
++    python tools/build_span_cache.py \
++        --source data/holdout_labeled.jsonl data/holdout_retrieval_queries.jsonl data/queries30.jsonl \
++        --pred outputs/pred_holdout_labeled_v6_mask.jsonl outputs/pred_holdout_retrieval_queries_v6_mask.jsonl \
++               outputs/pred_queries30_v6_mask.jsonl \
++        --out outputs/spans_v6.jsonl
++
++- source: 원문 파일 (jsonl, "id"+"text" 또는 "qid"+"query")
++- pred  : 예측 파일 (jsonl, "id" 또는 "qid" + "entities": [{"label","start","end"}]) — eval_predictions.py 형식과 같음
++- id 로 원문과 예측을 이어 붙이고, 출력에는 원문 대신 sha256 만 씁니다.
++- 라벨 이름이 달라도 NAME·PHONE 등은 팀 라벨(person, phone_number …)로 바꿉니다.
++"""
++import argparse
++import hashlib
++import json
++import sys
++
++LABELS7 = {"person", "phone_number", "email", "address", "resident_registration_number", "account_number", "card_number"}
++ALIAS = {"NAME": "person", "PER": "person", "PERSON": "person", "PHONE": "phone_number", "TEL": "phone_number",
++         "EMAIL": "email", "ADDRESS": "address", "ADDR": "address", "LOC_ADDRESS": "address",
++         "RRN": "resident_registration_number", "SSN": "resident_registration_number",
++         "ACCOUNT": "account_number", "ACCOUNT_NUMBER": "account_number", "BANK_ACCOUNT": "account_number",
++         "CARD": "card_number", "CARD_NUMBER": "card_number", "CREDIT_CARD": "card_number"}
++
++
++def rows(path):
++    with open(path, encoding="utf-8") as f:
++        return [json.loads(l) for l in f if l.strip()]
++
++
++def key(d):
++    return str(d.get("id") if d.get("id") is not None else d.get("qid"))
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--source", nargs="+", required=True)
++    ap.add_argument("--pred", nargs="+", required=True)
++    ap.add_argument("--out", required=True)
++    a = ap.parse_args()
++
++    texts = {}
++    for p in a.source:
++        for d in rows(p):
++            t = d.get("text") if d.get("text") is not None else d.get("query")
++            if t is not None:
++                texts[key(d)] = t
++    preds = {key(d): d for p in a.pred for d in rows(p)}
++
++    missing = [k for k in texts if k not in preds]
++    if missing:
++        sys.exit(f"예측이 없는 원문 {len(missing)}개 (예: {missing[:5]}). 외부 탐지기로 이 파일들도 돌렸는지 확인하세요.")
++    unknown, n_ent = set(), 0
++    with open(a.out, "w", encoding="utf-8") as f:
++        seen = set()
++        for k, t in texts.items():
++            ents = []
++            for e in preds[k].get("entities", []):
++                lab = ALIAS.get(e["label"], ALIAS.get(str(e["label"]).upper(), e["label"]))
++                if lab not in LABELS7:
++                    unknown.add(e["label"])
++                    continue
++                s, en = int(e["start"]), int(e["end"])
++                if 0 <= s < en <= len(t):
++                    ents.append({"label": lab, "start": s, "end": en})
++            h = hashlib.sha256(t.encode("utf-8")).hexdigest()
++            if h in seen:
++                continue
++            seen.add(h)
++            n_ent += len(ents)
++            f.write(json.dumps({"sha": h, "entities": ents}, ensure_ascii=False) + "\n")
++    print(f"원문 {len(texts)}개 (고유 {len(seen)}) · 위치 {n_ent}개 → {a.out}")
++    if unknown:
++        print(f"⚠ 팀 라벨이 아니라 버린 라벨: {sorted(unknown)}")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tools/eval_queries.py b/tools/eval_queries.py
+index eabf71c..502084f 100644
+--- a/tools/eval_queries.py
++++ b/tools/eval_queries.py
+@@ -51,7 +51,9 @@ def main():
+     ap.add_argument("--queries", default="data/queries30.jsonl")
+     ap.add_argument("--mode", default=os.getenv("SEARCH_MODE", "v3"))
+     ap.add_argument("-k", type=int, default=10)
++    ap.add_argument("--tag", default="", help="결과 파일 이름 뒤에 붙일 이름 (예: v6 → queries30_eval_v3_v6.md)")
+     a = ap.parse_args()
++    name = f"{a.mode}_{a.tag}" if a.tag else a.mode
+ 
+     from starter import db
+     from starter.search import search
+@@ -71,7 +73,7 @@ def main():
+             sys.exit(f"DB에 없는 문서 ID: {', '.join(bad)}")
+     out_dir = os.path.join(ROOT, "deliverables")
+     os.makedirs(out_dir, exist_ok=True)
+-    run_path = os.path.join(out_dir, f"run_queries30_{a.mode}.jsonl")
++    run_path = os.path.join(out_dir, f"run_queries30_{name}.jsonl")
+     runs, t0 = [], time.time()
+     conn = db.rag_conn()
+     try:
+@@ -90,9 +92,9 @@ def main():
+     gold = {q["qid"]: q for q in qs}
+     overall, by_type, per_q = evaluate(runs, gold)
+     masked = {r["qid"]: r for r in runs}
+-    L = [f"# 검색 질의 {len(qs)}개 평가 결과 — {a.mode}", "",
++    L = [f"# 검색 질의 {len(qs)}개 평가 결과 — {name}", "",
+          f"질의 파일: `{a.queries}` · 검색 상위 {a.k}개 · 질의당 {sec * 1000:.0f} ms", "",
+-         "## 전체", "", table([(a.mode, overall)], "모드"), "",
++         "## 전체", "", table([(name, overall)], "모드"), "",
+          "## 유형별", "", table(list(by_type.items()), "유형"), "",
+          "## 질의별", "",
+          "| qid | 유형 | 가명처리된 질의 | 질의 토큰 | 정답 수 | 첫 정답 순위 | Hit@5 |",
+@@ -103,7 +105,7 @@ def main():
+                  f"{s['n_rel']} | {s['first'] or '없음'} | {'O' if s['hit5'] else 'X'} |")
+     no_tok = [s["qid"] for s in per_q if s["n_tokens"] == 0]
+     L += ["", f"질의 토큰이 없는 질의 {len(no_tok)}개 (개인정보가 없는 질의이거나 질의 쪽 미탐): {', '.join(no_tok) or '없음'}"]
+-    rep = os.path.join(out_dir, f"queries30_eval_{a.mode}.md")
++    rep = os.path.join(out_dir, f"queries30_eval_{name}.md")
+     open(rep, "w", encoding="utf-8").write("\n".join(L) + "\n")
+     print(f"\n{rep}\n  Hit@1 {overall['hit1']:.3f} · Hit@5 {overall['hit5']:.3f} · MRR {overall['mrr']:.3f}"
+           f" · Confuse@10 {overall['conf'] if overall['conf'] is None else round(overall['conf'], 3)}")
