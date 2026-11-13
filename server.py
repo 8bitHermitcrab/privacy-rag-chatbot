@@ -2,7 +2,8 @@
 
     pip install fastapi uvicorn
     uvicorn server:app --port 8000
-    → 브라우저에서 http://127.0.0.1:8000         (아기 사자 어흥이 버전, 기본)
+    → 브라우저에서 http://127.0.0.1:8000         (시작 화면 → '어흥!' 버튼으로 챗봇 이동)
+                  http://127.0.0.1:8000/chat    (아기 사자 어흥이 챗봇)
                   http://127.0.0.1:8000/simple  (심플 버전)
 
 - 검색·답변은 app.py 와 같은 starter.chat.answer 를 그대로 사용 (프롬프트 ③, SEARCH_MODE=v3)
@@ -24,6 +25,7 @@ from starter.search import SEARCH_MODE
 
 app = FastAPI(title="가명처리 검색 챗봇")
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
+LOGIN = os.path.join(WEB_DIR, "login.html")     # 시작(로그인) 화면
 LION = os.path.join(WEB_DIR, "index.html")      # 어흥이 버전 (기본)
 SIMPLE = os.path.join(WEB_DIR, "simple.html")   # 심플 버전
 
@@ -34,6 +36,11 @@ class Ask(BaseModel):
 
 
 @app.get("/")
+def login():
+    return FileResponse(LOGIN)
+
+
+@app.get("/chat")
 def index():
     return FileResponse(LION)
 
