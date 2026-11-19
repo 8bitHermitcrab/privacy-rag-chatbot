@@ -61,7 +61,8 @@ def test_address_boundary():
     assert found(t, "address") == ["대전광역시 서구 둔산로 45, 702호 (둔산동)", "충청북도 청주시 상당구 낭성면 33-1"]
 
 
-def test_homonym_resolver():
+def test_homonym_resolver(monkeypatch):
+    monkeypatch.setattr(P, "BOOST_PERSON", True)   # 규칙 탐지(use_model=False)로 이름을 잡으려면 이름 보강이 켜져 있어야 함 (.env 와 무관하게)
     docs = {
         "A1": "[부고] 고객센터 마준기 대리 장인상\n연락처: 마준기 대리 010-1111-2222",
         "A2": "소명자: 고객센터 / 대리 / 마준기",

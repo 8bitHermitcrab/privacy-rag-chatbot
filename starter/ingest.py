@@ -5,6 +5,8 @@
 
 - 입력 파일의 entities(정답 라벨)는 쓰지 않습니다. 탐지는 pii_pipeline.detect() 가 합니다.
 - outputs/pseudo_<파일명>.jsonl 에 문서별 가명처리 결과를 남깁니다 (check_token_consistency.py 입력).
+- PII_V6_URL 이 설정되면 하이브리드 + V6 통합 탐지, 한쪽만 잡은 구간은 outputs/review_queue_<파일명>.jsonl 에
+  위치만 기록합니다 (원문 없음). 검수 때문에 적재가 멈추지는 않습니다.
 """
 import argparse
 import json
@@ -62,9 +64,16 @@ def main():
     # 1차: 탐지 + 기본 가명처리 → 동명이인 구분(resolver)이 문서 전체를 보고 사람 단위로 묶음
     use_resolver = not a.no_resolver
     pii_pipeline.LINK_GIVEN_NAMES = not use_resolver   # 이름만 연결은 resolver 가 역할을 보고 함
-    staged = []
+    staged, review_rows, sources = [], [], {}
     for d in docs:
-        spans = pii_pipeline.detect(d["text"])
+        spans, info = pii_pipeline.detect_info(d["text"])
+        sources[info["source"]] = sources.get(info["source"], 0) + 1
+        for r in info["review"]:      # 한쪽 탐지기만 잡은 구간: 가리기는 이미 했고, 위치만 검수 대기열에 기록
+            review_rows.append({"doc_id": d["id"], "label": r["label"], "start": r["start"], "end": r["end"],
+                                "reason": r["source"], "status": "PENDING"})
+        if info.get("v6_status") == "REVIEW_REQUIRED":
+            review_rows.append({"doc_id": d["id"], "label": None, "start": None, "end": None,
+                                "reason": "v6_review_required", "status": "PENDING"})
         _, records = pii_pipeline.pseudonymize(d["text"], spans)
         staged.append({"id": d["id"], "text": d["text"], "spans": spans, "records": records})
     resolver = PersonResolver(pii_pipeline._token).fit(staged) if use_resolver else None
@@ -139,6 +148,16 @@ def main():
         print(f"지역 토큰 {n_reg}종 (시도+시군구, tokens 배열에만 추가)")
     print(f"탐지+가명처리 {t_mask * 1000 / n:.1f} ms/문서, 임베딩 {t_embed * 1000 / n:.1f} ms/문서 ({config.EMBED_PROVIDER})")
     print(f"가명처리 결과: {pseudo_path}")
+    names = {"merge": "통합(V6+하이브리드)", "hybrid": "하이브리드", "hybrid_fallback": "하이브리드(V6 응답 없음)",
+             "cache": "캐시"}
+    print("탐지 경로: " + ", ".join(f"{names.get(k, k)} {v}건" for k, v in sorted(sources.items())))
+    if review_rows or "merge" in sources:
+        review_path = config.OUT_DIR / f"review_queue_{Path(a.data).stem}.jsonl"
+        with open(review_path, "w", encoding="utf-8") as f:
+            for r in review_rows:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        n_docs = len({r["doc_id"] for r in review_rows})
+        print(f"검수 대기열 {len(review_rows)}건 (문서 {n_docs}개, 위치만 기록 · 적재는 이미 완료): {review_path}")
 
 
 if __name__ == "__main__":

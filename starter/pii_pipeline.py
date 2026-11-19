@@ -283,11 +283,31 @@ def _drop_overlaps(spans):
 # ================================================================ 3. detect
 def detect(text, use_model=True):
     """use_model=False 는 모델 없이 규칙 탐지기만 쓰는 비교 실험(B)용
-    PII_SPANS_CACHE 가 설정되면 외부 탐지기 결과를 그대로 씀 (starter/span_cache.py, 검색 비교용)"""
+    PII_SPANS_CACHE 가 설정되면 외부 탐지기 결과를 그대로 씀 (starter/span_cache.py, 검색 비교용)
+    PII_V6_URL 이 설정되면 하이브리드 + V6 통합 (starter/detect_merge.py), V6 실패 시 하이브리드 단독"""
+    return detect_info(text, use_model)[0]
+
+
+def detect_info(text, use_model=True):
+    """(spans, info) — info: {"source": cache|hybrid|merge|hybrid_fallback, "review": [...], "v6_status": ...}
+    review 는 한쪽 탐지기만 잡은 구간 (위치·라벨만, 원문 없음) → 적재 때 검수 대기열에 기록"""
     from .span_cache import lookup
     cached = lookup(text)
     if cached is not None:
-        return _drop_overlaps(cached)
+        return _drop_overlaps(cached), {"source": "cache", "review": []}
+    hyb = _detect_hybrid(text, use_model)
+    from . import v6_client
+    if not (use_model and v6_client.enabled()):
+        return hyb, {"source": "hybrid", "review": []}
+    v6 = v6_client.detect_one(text)
+    if v6 is None:
+        return hyb, {"source": "hybrid_fallback", "review": []}
+    from .detect_merge import merge
+    spans, review = merge(hyb, v6["spans"])
+    return _drop_overlaps(spans), {"source": "merge", "review": review, "v6_status": v6["status"]}
+
+
+def _detect_hybrid(text, use_model=True):
     rules = rule_detect(text)
     if not use_model:
         spans = rules + _extra_phones(text, [(r["start"], r["end"]) for r in rules]) if PHONE_EXT else rules
