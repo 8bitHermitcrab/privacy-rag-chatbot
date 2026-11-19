@@ -5,6 +5,8 @@
 - 모델은 시작할 때 한 번만 로딩하고 예열합니다 (첫 요청이 느려지지 않게).
 - 127.0.0.1 에만 열립니다. 원문은 로그·응답 어디에도 남기지 않습니다 (위치·라벨·상태만 돌려줌).
 - 우리 쪽에서는 .env 에 PII_V6_URL=http://127.0.0.1:8765 를 넣으면 detect() 가 통합 모드로 동작합니다.
+- 서버 없이 같은 프로세스에서 돌리려면 PII_V6=inproc (starter/v6_client.py) — 이 서버는 버전 충돌 등으로
+  inproc 을 쓸 수 없을 때의 대안입니다.
 
 요청  POST /detect   {"texts": ["...", "..."]}
 응답  {"results": [{"status": "READY_FOR_PSEUDONYMIZATION", "ms": 41.2,
@@ -24,20 +26,14 @@ MAX_BODY = 2_000_000          # 한 요청 최대 2MB
 MAX_TEXTS = 64
 
 
-def overlap_label(iv, ents):
-    for e in ents:
-        if e["start"] < iv["end"] and iv["start"] < e["end"]:
-            return e["label"]
-    return "person"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))     # 우리 레포 루트 (starter.v6_client)
+from starter.v6_client import to_spans                              # noqa: E402  표준 라이브러리만 쓰는 모듈
 
 
 def run_one(det, text):
     t0 = time.perf_counter()
-    r = det.detect(text)
-    ents = [{"label": e["label"], "start": int(e["start"]), "end": int(e["end"])} for e in r.get("entities", [])]
-    spans = [{"label": overlap_label(m, ents), "start": int(m["start"]), "end": int(m["end"])}
-             for m in r.get("mask_intervals", [])]
-    return {"status": r.get("status"), "spans": spans, "ms": round(1000 * (time.perf_counter() - t0), 1)}
+    out = to_spans(det.detect(text))                                # inproc 모드와 같은 변환
+    return {**out, "ms": round(1000 * (time.perf_counter() - t0), 1)}
 
 
 def make_handler(det, info):

@@ -23,6 +23,16 @@ from starter.chat import answer
 from starter.search import SEARCH_MODE
 
 app = FastAPI(title="가명처리 검색 챗봇")
+
+
+@app.on_event("startup")
+def _preload_v6():
+    """PII_V6=inproc 이면 V6 모델을 서버 시작 때 미리 로딩 (첫 질의가 느려지지 않게). 실패해도 서버는 뜨고 하이브리드 단독"""
+    from starter import v6_client
+    try:
+        v6_client.preload()
+    except Exception as exc:
+        print(f"[v6] 미리 로딩 실패({type(exc).__name__}) → 질의 때 다시 시도, 안 되면 하이브리드 단독", flush=True)
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 LION = os.path.join(WEB_DIR, "index.html")      # 어흥이 버전 (기본)
 SIMPLE = os.path.join(WEB_DIR, "simple.html")   # 심플 버전

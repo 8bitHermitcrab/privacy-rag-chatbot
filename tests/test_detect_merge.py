@@ -64,8 +64,9 @@ def _serve(det):
     return srv
 
 
-def _client(url):
+def _client(url, mode=""):
     os.environ["PII_V6_URL"] = url
+    os.environ["PII_V6"] = mode
     os.environ["PII_V6_RETRY_S"] = "60"
     import starter.v6_client as c
     return importlib.reload(c)
@@ -114,3 +115,45 @@ def test_detect_info_paths(monkeypatch):
     assert info["source"] == "hybrid_fallback" and spans == HYB
     assert P.detect(TEXT) == HYB
     _client("")
+
+
+class FakeCtx:
+    def __init__(self):
+        self.closed = False
+
+    def __enter__(self):
+        return FakeDetector()
+
+    def __exit__(self, *a):
+        self.closed = True
+
+
+def test_inproc_mode_matches_server_conversion(monkeypatch):
+    import types
+    fake = types.ModuleType("pii_detector")
+    calls = []
+    fake.create_detector = lambda: calls.append(1) or FakeCtx()
+    monkeypatch.setitem(sys.modules, "pii_detector", fake)
+    c = _client("", mode="inproc")
+    assert c.enabled()
+    out = c.detect_many([TEXT, TEXT])
+    assert out[0]["spans"] == [{"label": "person", "start": 0, "end": 3},
+                               {"label": "phone_number", "start": 6, "end": 19}]
+    c.detect_one(TEXT)
+    assert len(calls) == 1                         # 모델은 한 번만 로딩
+    srv = _serve(FakeDetector())                   # 서버 방식과 결과가 같은지
+    try:
+        http = _client(f"http://127.0.0.1:{srv.server_port}")
+        assert http.detect_many([TEXT]) == [out[0]]
+    finally:
+        srv.shutdown()
+    _client("")
+
+
+def test_inproc_falls_back_when_package_missing(monkeypatch):
+    monkeypatch.setitem(sys.modules, "pii_detector", None)       # import 하면 ImportError
+    c = _client("", mode="inproc")
+    assert c.detect_one(TEXT) is None and c.STATS["v6_fail"] == 1
+    assert c.detect_one(TEXT) is None                            # 재시도 대기 중
+    _client("")
+
