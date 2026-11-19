@@ -103,8 +103,8 @@ def dump_ours(golds, path):
     with open(path, "w", encoding="utf-8") as f:
         for d in golds:
             s = time.perf_counter()
-            sp = P.detect(d["text"])
-            f.write(json.dumps({"id": d["id"], "ms": round(1000 * (time.perf_counter() - s), 1),
+            sp = P.detect(d["text"] if "text" in d else d["query"])     # 검색 질의 파일(qid+query)도 가능
+            f.write(json.dumps({"id": d["id"] if "id" in d else d["qid"], "ms": round(1000 * (time.perf_counter() - s), 1),
                                 "entities": [{k: x[k] for k in ("label", "start", "end")} for x in sp]},
                                ensure_ascii=False) + "\n")
     print(f"저장: {path}  ({1000 * (time.perf_counter() - t0) / max(len(golds), 1):.1f} ms/문서)")
@@ -118,7 +118,7 @@ def main():
     ap.add_argument("--dump-ours", help="현재 .env 설정의 우리 탐지기로 예측 파일을 만들 경로")
     a = ap.parse_args()
     golds = load(a.gold)
-    if a.dump_ours:
+    if a.dump_ours:                                   # 질의 파일이면 채점 없이 예측만 저장
         dump_ours(golds, a.dump_ours)
         if not a.pred:
             return
