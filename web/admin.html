@@ -898,196 +898,19 @@ const num = n => n.toLocaleString("ko-KR");
 // 문서 기반 직원 명부 (task_03/employee_master.csv 에서 이름을 뺀 것). 아래 두 줄은 손으로 고치지 말고
 // Project_2 폴더에서 python scripts/export_admin_employees.py 로 다시 만듦
 /* EMPLOYEES_SNAPSHOT_START */
-const EMPLOYEE_SOURCE = {"file": "task_03/employee_master.csv", "made": "2026-11-17 16:55", "count": 99};
+const EMPLOYEE_SOURCE = {file:"auth.employee_info",made:"DB 조회 시점",count:0};
 const EMPLOYEES = [
-  {"id": "DE0018", "team_id": "T01", "position": "차장", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "2026-02-09", "last_date": "2026-05-18", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0019", "team_id": "T01", "position": "사원", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 2, "candidate_docs": 9, "financial_docs": 0, "first_date": "2026-01-19", "last_date": "2026-08-07", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0020", "team_id": "T01", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "2026-08-23", "last_date": "2026-08-23", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0034", "team_id": "T02", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "2026-02-17", "last_date": "2026-02-17", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0038", "team_id": "T02", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "2026-11-13", "last_date": "2026-11-13", "possible_match": "DE0085;DE0086", "risk": "", "rules": "R02"},
-  {"id": "DE0040", "team_id": "T03", "position": "", "title": "팀장", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 2, "candidate_docs": 4, "financial_docs": 0, "first_date": "2026-03-16", "last_date": "2026-06-24", "possible_match": "DE0072;DE0073", "risk": "", "rules": "R02"},
-  {"id": "DE0041", "team_id": "T03", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0042", "team_id": "T03", "position": "과장", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "2026-05-10", "last_date": "2026-05-10", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0043", "team_id": "T03", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0097;DE0098", "risk": "", "rules": "R02"},
-  {"id": "DE0004", "team_id": "T04", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0005", "team_id": "T04", "position": "과장", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "2026-05-03", "last_date": "2026-05-03", "possible_match": "DE0066", "risk": "", "rules": "R02"},
-  {"id": "DE0006", "team_id": "T04", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "2026-09-11", "last_date": "2026-09-11", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0008", "team_id": "T04", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0009", "team_id": "T04", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 1, "first_date": "2026-11-10", "last_date": "2026-11-10", "possible_match": "DE0094", "risk": "", "rules": "R02"},
-  {"id": "DE0010", "team_id": "T04", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0046", "team_id": "T05", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0047", "team_id": "T05", "position": "대리", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 4, "financial_docs": 0, "first_date": "2026-02-04", "last_date": "2026-11-09", "possible_match": "DE0061", "risk": "", "rules": "R02"},
-  {"id": "DE0048", "team_id": "T05", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "2026-02-25", "last_date": "2026-02-25", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0049", "team_id": "T05", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "2026-01-07", "last_date": "2026-01-07", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0050", "team_id": "T05", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0021", "team_id": "T06", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "2026-04-28", "last_date": "2026-04-28", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0022", "team_id": "T06", "position": "부장", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 14, "financial_docs": 9, "first_date": "2026-01-03", "last_date": "2026-11-24", "possible_match": "DE0057;DE0058", "risk": "", "rules": "R02"},
-  {"id": "DE0023", "team_id": "T06", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0024", "team_id": "T06", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "2026-03-21", "last_date": "2026-03-21", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0025", "team_id": "T06", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0026", "team_id": "T07", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 4, "financial_docs": 0, "first_date": "2026-02-11", "last_date": "2026-08-13", "possible_match": "DE0059;DE0060", "risk": "", "rules": "R02"},
-  {"id": "DE0027", "team_id": "T07", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0028", "team_id": "T07", "position": "과장", "title": "", "employee_no": "SB199813", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "A(사번)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "2026-07-20", "last_date": "2026-07-20", "possible_match": "DE0002", "risk": "", "rules": "R01"},
-  {"id": "DE0029", "team_id": "T07", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0030", "team_id": "T07", "position": "대리", "title": "", "employee_no": "SB915413", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "A(사번)", "strong_docs": 1, "candidate_docs": 9, "financial_docs": 0, "first_date": "2026-02-17", "last_date": "2026-10-11", "possible_match": "", "risk": "", "rules": "R01"},
-  {"id": "DE0031", "team_id": "T07", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "2026-01-25", "last_date": "2026-01-25", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0032", "team_id": "T07", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "2026-01-01", "last_date": "2026-01-01", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0033", "team_id": "T07", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "2026-07-25", "last_date": "2026-07-25", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0044", "team_id": "T08", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0075", "risk": "", "rules": "R02"},
-  {"id": "DE0045", "team_id": "T08", "position": "사원", "title": "", "employee_no": "SB819873", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "A(사번)", "strong_docs": 1, "candidate_docs": 2, "financial_docs": 0, "first_date": "2026-01-21", "last_date": "2026-08-13", "possible_match": "", "risk": "", "rules": "R01"},
-  {"id": "DE0001", "team_id": "T09", "position": "사원", "title": "", "employee_no": "SB402518", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "A(사번)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R01"},
-  {"id": "DE0002", "team_id": "T09", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0028", "risk": "", "rules": "R02"},
-  {"id": "DE0003", "team_id": "T09", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "2026-05-21", "last_date": "2026-05-21", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0011", "team_id": "T10", "position": "대리", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 3, "financial_docs": 0, "first_date": "2026-03-28", "last_date": "2026-10-17", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0012", "team_id": "T10", "position": "과장", "title": "", "employee_no": "SB596669", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "A(사번)", "strong_docs": 1, "candidate_docs": 2, "financial_docs": 0, "first_date": "2026-05-28", "last_date": "2026-11-24", "possible_match": "", "risk": "", "rules": "R01"},
-  {"id": "DE0015", "team_id": "T10", "position": "", "title": "팀장", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 2, "financial_docs": 0, "first_date": "2026-02-04", "last_date": "2026-09-28", "possible_match": "DE0068;DE0069", "risk": "", "rules": "R02"},
-  {"id": "DE0017", "team_id": "T10", "position": "", "title": "", "employee_no": "", "status": "DOC_CONFIRMED", "official": "NOT_VERIFIED", "evidence": "B(소속 서식)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "2026-04-26", "last_date": "2026-04-26", "possible_match": "", "risk": "", "rules": "R02"},
-  {"id": "DE0036", "team_id": "T02", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 4, "financial_docs": 0, "first_date": "2026-02-01", "last_date": "2026-09-28", "possible_match": "DE0035", "risk": "", "rules": "R04"},
-  {"id": "DE0037", "team_id": "T02", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "2026-09-27", "last_date": "2026-12-16", "possible_match": "DE0034", "risk": "", "rules": "R04"},
-  {"id": "DE0039", "team_id": "T02", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "2026-03-01", "last_date": "2026-06-24", "possible_match": "DE0038", "risk": "", "rules": "R04"},
-  {"id": "DE0013", "team_id": "T10", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 5, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0015;DE0065", "risk": "", "rules": "R04"},
-  {"id": "DE0014", "team_id": "T10", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0011;DE0067", "risk": "", "rules": "R04"},
-  {"id": "DE0016", "team_id": "T10", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 2, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0012;DE0090", "risk": "", "rules": "R04"},
-  {"id": "DE0051", "team_id": "", "position": "대리", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0052", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0053", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0054", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0055", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "2026-09-10", "last_date": "2026-09-10", "possible_match": "DE0056", "risk": "", "rules": "R03"},
-  {"id": "DE0056", "team_id": "", "position": "", "title": "팀장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0055", "risk": "", "rules": "R03"},
-  {"id": "DE0057", "team_id": "", "position": "", "title": "부서장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0022;DE0058", "risk": "", "rules": "R03"},
-  {"id": "DE0058", "team_id": "", "position": "부장", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "2026-04-12", "last_date": "2026-04-12", "possible_match": "DE0022;DE0057", "risk": "", "rules": "R03"},
-  {"id": "DE0059", "team_id": "", "position": "", "title": "부서장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0026;DE0060", "risk": "", "rules": "R03"},
-  {"id": "DE0060", "team_id": "", "position": "차장", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0026;DE0059", "risk": "", "rules": "R03"},
-  {"id": "DE0061", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 6, "financial_docs": 7, "first_date": "2026-03-28", "last_date": "2026-06-04", "possible_match": "DE0047", "risk": "", "rules": "R03"},
-  {"id": "DE0062", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "2026-06-12", "last_date": "2026-06-12", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0063", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0064", "team_id": "", "position": "과장", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0065", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 4, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0013;DE0015;DE0068;DE0069", "risk": "", "rules": "R04"},
-  {"id": "DE0066", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "2026-05-14", "last_date": "2026-05-14", "possible_match": "DE0005", "risk": "", "rules": "R03"},
-  {"id": "DE0067", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0003;DE0011;DE0014", "risk": "", "rules": "R04"},
-  {"id": "DE0068", "team_id": "", "position": "", "title": "부서장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0015;DE0069", "risk": "", "rules": "R03"},
-  {"id": "DE0069", "team_id": "", "position": "", "title": "팀장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "2026-11-24", "last_date": "2026-11-24", "possible_match": "DE0015;DE0068", "risk": "", "rules": "R03"},
-  {"id": "DE0070", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0071", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0072", "team_id": "", "position": "", "title": "부서장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0040;DE0073", "risk": "", "rules": "R03"},
-  {"id": "DE0073", "team_id": "", "position": "", "title": "팀장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0040;DE0072", "risk": "", "rules": "R03"},
-  {"id": "DE0074", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0075", "team_id": "", "position": "부장", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "2026-05-03", "last_date": "2026-05-03", "possible_match": "DE0044", "risk": "", "rules": "R03"},
-  {"id": "DE0076", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0077", "team_id": "", "position": "대리", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0078", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0079", "team_id": "", "position": "대리", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0080", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0081", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0082", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 6, "financial_docs": 0, "first_date": "2026-03-21", "last_date": "2026-11-12", "possible_match": "DE0007;DE0083;DE0084", "risk": "", "rules": "R03"},
-  {"id": "DE0083", "team_id": "", "position": "", "title": "부서장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0007;DE0082;DE0084", "risk": "", "rules": "R03"},
-  {"id": "DE0084", "team_id": "", "position": "", "title": "팀장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 6, "financial_docs": 0, "first_date": "2026-01-12", "last_date": "2026-10-17", "possible_match": "DE0007;DE0082;DE0083", "risk": "", "rules": "R03"},
-  {"id": "DE0085", "team_id": "", "position": "", "title": "부서장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0038;DE0086", "risk": "", "rules": "R03"},
-  {"id": "DE0086", "team_id": "", "position": "부장", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "2026-04-16", "last_date": "2026-04-16", "possible_match": "DE0038;DE0085", "risk": "", "rules": "R03"},
-  {"id": "DE0087", "team_id": "", "position": "과장", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0088", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0089", "team_id": "", "position": "주임", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0090", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0012;DE0016", "risk": "", "rules": "R04"},
-  {"id": "DE0091", "team_id": "", "position": "과장", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0092", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0093", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0094", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "2026-03-10", "last_date": "2026-08-07", "possible_match": "DE0009", "risk": "", "rules": "R03"},
-  {"id": "DE0095", "team_id": "", "position": "대리", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0096", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0097", "team_id": "", "position": "", "title": "부서장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 0, "first_date": "", "last_date": "", "possible_match": "DE0043;DE0098", "risk": "", "rules": "R03"},
-  {"id": "DE0098", "team_id": "", "position": "", "title": "팀장", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 1, "financial_docs": 0, "first_date": "2026-11-09", "last_date": "2026-11-09", "possible_match": "DE0043;DE0097", "risk": "", "rules": "R03"},
-  {"id": "DE0099", "team_id": "", "position": "", "title": "", "employee_no": "", "status": "EMPLOYEE_CANDIDATE", "official": "NOT_VERIFIED", "evidence": "C(역할어·직급)", "strong_docs": 1, "candidate_docs": 0, "financial_docs": 1, "first_date": "", "last_date": "", "possible_match": "", "risk": "", "rules": "R03"},
-  {"id": "DE0035", "team_id": "T02", "position": "과장", "title": "", "employee_no": "SB361674;SB737812", "status": "UNRESOLVED", "official": "NOT_VERIFIED", "evidence": "A(사번)", "strong_docs": 0, "candidate_docs": 12, "financial_docs": 0, "first_date": "2026-01-12", "last_date": "2026-12-16", "possible_match": "", "risk": "사번 2개", "rules": "R06"},
-  {"id": "DE0007", "team_id": "T04", "position": "", "title": "팀장", "employee_no": "SB387897;SB667359", "status": "UNRESOLVED", "official": "NOT_VERIFIED", "evidence": "A(사번)", "strong_docs": 0, "candidate_docs": 14, "financial_docs": 9, "first_date": "2026-04-12", "last_date": "2026-12-05", "possible_match": "DE0082;DE0083;DE0084", "risk": "사번 2개", "rules": "R06"}
 ];
 /* EMPLOYEES_SNAPSHOT_END */
 
 // 개인정보 탐지 검토 목록 (챗봇이 애매하게·잘못 본 부분만). 손으로 고치지 말고
 // Project_2 폴더에서 python scripts/export_detection_review.py 로 다시 만듦
-/* DETECTION_REVIEW_START */
-const DETECTION_SOURCE = {"file": "privacy-rag-chatbot-main/outputs/pseudo_holdout_labeled.jsonl", "made": "2026-11-18 16:17", "count": 56};
-const DETECTION_REVIEW = [
-  {"id": "R001", "kind": "MISSED_NAME", "doc": "H0001", "doc_type": "경조사공지", "start": 152, "end": 154, "label": "person", "text": "시우", "ctx": [[142, 157, "바랍니다. 인사팀 시우 드림"]], "why": "공지 발신자 '시우'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R002", "kind": "BOUNDARY_PARTICLE", "doc": "H0002", "doc_type": "카드발급심사", "start": 179, "end": 181, "label": "person", "text": "안윤", "ctx": [[169, 191, " 문의함. 심사역 안윤이 조건 안내 완료"]], "why": "'안윤' 뒤에 '이'가 붙어 있어요. 보통은 조사라서 지금이 맞지만, 이름이 세 글자(예: 안윤이)라면 한 글자 늘려 주세요", "suggest": {"action": "keep"}},
-  {"id": "R003", "kind": "MISSED_NAME", "doc": "H0004", "doc_type": "녹취요약", "start": 36, "end": 38, "label": "person", "text": "재원", "ctx": [[26, 48, "0608  상담사 재원: 네, 새봄카드 "]], "why": "업무 역할 뒤의 '재원'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R004", "kind": "MISSED_NAME", "doc": "H0009", "doc_type": "대리인위임확인", "start": 17, "end": 19, "label": "person", "text": "박별", "ctx": [[7, 29, "확인서  위임인: 박별 / 주민등록번호 "]], "why": "항목명 뒤의 '박별'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R005", "kind": "MISSED_NAME", "doc": "H0009", "doc_type": "대리인위임확인", "start": 48, "end": 50, "label": "person", "text": "오담", "ctx": [[38, 42, "<RRN_d80addde>", 1], [42, 60, " 대리인: 오담 / 주민등록번호 "]], "why": "항목명 뒤의 '오담'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R006", "kind": "MISSED_NAME", "doc": "H0009", "doc_type": "대리인위임확인", "start": 147, "end": 149, "label": "person", "text": "박별", "ctx": [[137, 145, "<ACCOUNT_efc6d632>", 1], [145, 159, "  박별이 입원 중이어서 "]], "why": "문장 첫머리의 '박별'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R007", "kind": "MISSED_NAME", "doc": "H0009", "doc_type": "대리인위임확인", "start": 159, "end": 161, "label": "person", "text": "오담", "ctx": [[149, 171, "이 입원 중이어서 오담에게 업무를 위임함"]], "why": "위임받는 사람 '오담'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R008", "kind": "MISSED_NAME", "doc": "H0011", "doc_type": "자동이체신청서", "start": 32, "end": 34, "label": "person", "text": "오현", "ctx": [[22, 43, "25)  신청인: 오현 주민등록번호: "], [43, 44, "<RRN_bc5786e8>", 1]], "why": "항목명 뒤의 '오현'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R009", "kind": "MISSED_NAME", "doc": "H0028", "doc_type": "대리인위임확인", "start": 17, "end": 19, "label": "person", "text": "전별", "ctx": [[7, 29, "확인서  위임인: 전별 / 주민등록번호 "]], "why": "항목명 뒤의 '전별'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R010", "kind": "MISSED_NAME", "doc": "H0028", "doc_type": "대리인위임확인", "start": 143, "end": 145, "label": "person", "text": "전별", "ctx": [[133, 141, "<ACCOUNT_47a36afa>", 1], [141, 155, "  전별이 입원 중이어서 "]], "why": "문장 첫머리의 '전별'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R011", "kind": "BOUNDARY_CUT", "doc": "H0048", "doc_type": "우편반송처리", "start": 83, "end": 106, "label": "address", "text": "대구광역시 수성구 한빛로 174, 502호", "ctx": [[73, 75, "<ADDRESS_7fea8158>", 1], [75, 108, " 변경 주소: 대구광역시 수성구 한빛로 174, 502호 ("], [108, 111, "<ADDRESS_72ea2332>", 1], [111, 122, ")  고객 확인 결과"]], "why": "주소의 뒤의 동 이름이(가) 빠졌어요", "suggest": {"action": "range", "start": 83, "end": 112}},
-  {"id": "R012", "kind": "BOUNDARY_CUT", "doc": "H0057", "doc_type": "카드발급심사", "start": 125, "end": 148, "label": "address", "text": "부산광역시 수영구 여울길 89, 1214호", "ctx": [[115, 119, "<CARD_d45131a4>", 1], [119, 150, " 배송지: 부산광역시 수영구 여울길 89, 1214호 ("], [150, 153, "<ADDRESS_81457881>", 1], [153, 156, ")  "], [156, 159, "<PERSON_faed94d5>", 1], [159, 164, " 고객은 "]], "why": "주소의 뒤의 동 이름이(가) 빠졌어요", "suggest": {"action": "range", "start": 125, "end": 154}},
-  {"id": "R013", "kind": "MISSED_NAME", "doc": "H0057", "doc_type": "카드발급심사", "start": 184, "end": 187, "label": "person", "text": "오가은", "ctx": [[174, 197, " 문의함. 심사역 오가은이 조건 안내 완료"]], "why": "업무 역할 뒤의 '오가은'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R014", "kind": "MISSED_NAME", "doc": "H0076", "doc_type": "우편반송처리", "start": 21, "end": 24, "label": "person", "text": "전 찬", "ctx": [[11, 31, "록  대상 고객: 전 찬 카드번호: "], [31, 34, "<CARD_1423191e>", 1]], "why": "항목명 뒤의 '전 찬'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R015", "kind": "MISSED_NAME", "doc": "H0077", "doc_type": "경조사공지", "start": 153, "end": 155, "label": "person", "text": "시우", "ctx": [[143, 158, "바랍니다. 인사팀 시우 드림"]], "why": "공지 발신자 '시우'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R016", "kind": "MISSED_NAME", "doc": "H0079", "doc_type": "대리인위임확인", "start": 17, "end": 19, "label": "person", "text": "한별", "ctx": [[7, 29, "확인서  위임인: 한별 / 주민등록번호 "]], "why": "항목명 뒤의 '한별'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R017", "kind": "MISSED_NAME", "doc": "H0079", "doc_type": "대리인위임확인", "start": 143, "end": 145, "label": "person", "text": "한별", "ctx": [[133, 141, "<ACCOUNT_dbcd9182>", 1], [141, 155, "  한별이 입원 중이어서 "]], "why": "문장 첫머리의 '한별'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R018", "kind": "BOUNDARY_CUT", "doc": "H0080", "doc_type": "대리인위임확인", "start": 133, "end": 144, "label": "account_number", "text": "5247-861756", "ctx": [[118, 146, "환급 환급 계좌: 19-535247-861756  "], [146, 148, "<PERSON_5345d1b3>", 1], [148, 154, "이 입원 중"]], "why": "계좌번호가 '19-535247-861756' 중 일부만 잡혔어요", "suggest": {"action": "range", "start": 128, "end": 144}},
-  {"id": "R019", "kind": "BOUNDARY_PARTICLE", "doc": "H0080", "doc_type": "대리인위임확인", "start": 146, "end": 148, "label": "person", "text": "홍결", "ctx": [[136, 144, "<ACCOUNT_21b447a5>", 1], [144, 158, "  홍결이 입원 중이어서 "]], "why": "'홍결' 뒤에 '이'가 붙어 있어요. 보통은 조사라서 지금이 맞지만, 이름이 세 글자(예: 홍결이)라면 한 글자 늘려 주세요", "suggest": {"action": "keep"}},
-  {"id": "R020", "kind": "MISSED_NAME", "doc": "H0081", "doc_type": "우편반송처리", "start": 21, "end": 23, "label": "person", "text": "오솔", "ctx": [[11, 30, "록  대상 고객: 오솔 카드번호: "], [30, 33, "<CARD_8494ba5c>", 1]], "why": "항목명 뒤의 '오솔'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R021", "kind": "NOT_PII", "doc": "H0091", "doc_type": "경조사공지", "start": 17, "end": 19, "label": "person", "text": "장인", "ctx": [[7, 10, "센터 "], [10, 13, "<PERSON_6b8c643b>", 1], [13, 27, " 팀장 장인상  고객센터 "], [27, 29, "<PERSON_6b8c643b>", 1]], "why": "'장인'은(는) 흔히 쓰는 낱말인데 이름으로 잡았어요", "suggest": {"action": "remove"}},
-  {"id": "R022", "kind": "BOUNDARY_PARTICLE", "doc": "H0094", "doc_type": "대리인위임확인", "start": 149, "end": 151, "label": "person", "text": "권솔", "ctx": [[139, 147, "<ACCOUNT_fe47d5bd>", 1], [147, 161, "  권솔이 입원 중이어서 "]], "why": "'권솔' 뒤에 '이'가 붙어 있어요. 보통은 조사라서 지금이 맞지만, 이름이 세 글자(예: 권솔이)라면 한 글자 늘려 주세요", "suggest": {"action": "keep"}},
-  {"id": "R023", "kind": "MISSED_NAME", "doc": "H0097", "doc_type": "경조사공지", "start": 153, "end": 155, "label": "person", "text": "시우", "ctx": [[143, 158, "바랍니다. 인사팀 시우 드림"]], "why": "공지 발신자 '시우'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R024", "kind": "NOT_PII", "doc": "H0100", "doc_type": "피해접수", "start": 81, "end": 92, "label": "account_number", "text": "2026-280674", "ctx": [[71, 94, "건 번호: 경찰청 2026-280674  "], [94, 97, "<PERSON_e2e365b5>", 1], [97, 102, "님은 검찰"]], "why": "사건 번호로 보이는데 '계좌번호'(으)로 잡았어요", "suggest": {"action": "remove"}},
-  {"id": "R025", "kind": "BOUNDARY_CUT", "doc": "H0103", "doc_type": "카드발급심사", "start": 134, "end": 153, "label": "address", "text": "서울특별시 강남구 한빛로 9, 2층", "ctx": [[116, 120, "<CARD_f2886ecf>", 1], [120, 155, " 배송지: (05299) 서울특별시 강남구 한빛로 9, 2층  "], [155, 158, "<PERSON_71147464>", 1], [158, 163, " 고객은 "]], "why": "주소의 앞의 우편번호이(가) 빠졌어요", "suggest": {"action": "range", "start": 126, "end": 153}},
-  {"id": "R026", "kind": "BOUNDARY_CUT", "doc": "H0105", "doc_type": "카드발급심사", "start": 137, "end": 157, "label": "address", "text": "서울특별시 강남구 가온로 78, 3층", "ctx": [[119, 123, "<CARD_06efd72e>", 1], [123, 159, " 배송지: (06795) 서울특별시 강남구 가온로 78, 3층  "], [159, 162, "<PERSON_93196e2c>", 1], [162, 167, " 고객은 "]], "why": "주소의 앞의 우편번호이(가) 빠졌어요", "suggest": {"action": "range", "start": 129, "end": 157}},
-  {"id": "R027", "kind": "BOUNDARY_PARTICLE", "doc": "H0105", "doc_type": "카드발급심사", "start": 187, "end": 189, "label": "person", "text": "김찬", "ctx": [[177, 199, " 문의함. 심사역 김찬이 조건 안내 완료"]], "why": "'김찬' 뒤에 '이'가 붙어 있어요. 보통은 조사라서 지금이 맞지만, 이름이 세 글자(예: 김찬이)라면 한 글자 늘려 주세요", "suggest": {"action": "keep"}},
-  {"id": "R028", "kind": "BOUNDARY_CUT", "doc": "H0114", "doc_type": "한도심사결과", "start": 0, "end": 23, "label": "address", "text": "대구광역시 수성구 솔내로 15, 2127호", "ctx": [[0, 25, "대구광역시 수성구 솔내로 15, 2127호 ("], [25, 28, "<ADDRESS_72ea2332>", 1], [28, 30, ") "], [30, 33, "<PERSON_fe78c7e4>", 1], [33, 39, " 님 귀하 "]], "why": "주소의 뒤의 동 이름이(가) 빠졌어요", "suggest": {"action": "range", "start": 0, "end": 29}},
-  {"id": "R029", "kind": "BOUNDARY_CUT", "doc": "H0116", "doc_type": "카드발급심사", "start": 129, "end": 153, "label": "address", "text": "서울특별시 강남구 가온로 164, 1926호", "ctx": [[119, 123, "<CARD_951bc018>", 1], [123, 155, " 배송지: 서울특별시 강남구 가온로 164, 1926호 ("], [155, 158, "<ADDRESS_f8e8486e>", 1], [158, 161, ")  "], [161, 165, "<PERSON_8d4f728b>", 1], [165, 169, " 고객은"]], "why": "주소의 뒤의 동 이름이(가) 빠졌어요", "suggest": {"action": "range", "start": 129, "end": 159}},
-  {"id": "R030", "kind": "BOUNDARY_CUT", "doc": "H0117", "doc_type": "카드발급심사", "start": 157, "end": 159, "label": "person", "text": "이안", "ctx": [[144, 152, "<ADDRESS_a53389e2>", 1], [152, 154, "  "], [154, 156, "<ADDRESS_01df5ecd>", 1], [156, 169, " 이안 고객은 연회비 면"]], "why": "띄어 쓴 이름 '선우 이안'의 앞부분을 '주소'(으)로 따로 잡았어요", "suggest": {"action": "range", "start": 154, "end": 159}},
-  {"id": "R031", "kind": "MISSED_NAME", "doc": "H0117", "doc_type": "카드발급심사", "start": 184, "end": 187, "label": "person", "text": "서라온", "ctx": [[174, 197, " 문의함. 심사역 서라온이 조건 안내 완료"]], "why": "업무 역할 뒤의 '서라온'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R032", "kind": "NOT_PII", "doc": "H0121", "doc_type": "피해접수", "start": 80, "end": 91, "label": "account_number", "text": "2026-589140", "ctx": [[70, 93, "건 번호: 경찰청 2026-589140  "], [93, 96, "<PERSON_359c112b>", 1], [96, 101, "님은 검찰"]], "why": "사건 번호로 보이는데 '계좌번호'(으)로 잡았어요", "suggest": {"action": "remove"}},
-  {"id": "R033", "kind": "MISSED_NAME", "doc": "H0123", "doc_type": "자동이체신청서", "start": 32, "end": 35, "label": "person", "text": "한다인", "ctx": [[22, 44, "07)  신청인: 한다인 주민등록번호: "], [44, 45, "<RRN_fed00532>", 1]], "why": "항목명 뒤의 '한다인'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R034", "kind": "BOUNDARY_CUT", "doc": "H0125", "doc_type": "자동이체신청서", "start": 121, "end": 143, "label": "address", "text": "경기도 용인시 수지구 마루길 59, 3층", "ctx": [[103, 104, "<PHONE_5907f6d1>", 1], [104, 153, " 청구지 주소: (11313) 경기도 용인시 수지구 마루길 59, 3층  위 계좌에서 매"]], "why": "주소의 앞의 우편번호이(가) 빠졌어요", "suggest": {"action": "range", "start": 113, "end": 143}},
-  {"id": "R035", "kind": "MISSED_NAME", "doc": "H0126", "doc_type": "녹취요약", "start": 36, "end": 38, "label": "person", "text": "재원", "ctx": [[26, 48, "6473  상담사 재원: 네, 새봄카드 "]], "why": "업무 역할 뒤의 '재원'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R036", "kind": "BOUNDARY_CUT", "doc": "H0128", "doc_type": "해외송금접수", "start": 23, "end": 38, "label": "account_number", "text": "82 10-8138-9758", "ctx": [[12, 17, "송금인: "], [17, 20, "<PERSON_6c6b25c1>", 1], [20, 47, " (+82 10-8138-9758) 출금 계좌: "], [47, 48, "<ACCOUNT_cedcf1f6>", 1]], "why": "계좌번호가 '+82 10-8138-9758' 중 일부만 잡혔어요 (전체 모양은 전화번호예요)", "suggest": {"action": "range", "start": 22, "end": 38, "label": "phone_number"}},
-  {"id": "R037", "kind": "MISSED_NAME", "doc": "H0128", "doc_type": "해외송금접수", "start": 121, "end": 123, "label": "person", "text": "온유", "ctx": [[111, 133, "SD 7,200  온유 님이 유학 중인 "]], "why": "문장 첫머리의 '온유'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R038", "kind": "BOUNDARY_CUT", "doc": "H0131", "doc_type": "우편반송처리", "start": 86, "end": 113, "label": "address", "text": "충청남도 천안시 서북구 한빛로 135, 1315호", "ctx": [[76, 78, "<ADDRESS_9f7da19d>", 1], [78, 115, " 변경 주소: 충청남도 천안시 서북구 한빛로 135, 1315호 ("], [115, 118, "<ADDRESS_4d58b1c3>", 1], [118, 129, ")  고객 확인 결과"]], "why": "주소의 뒤의 동 이름이(가) 빠졌어요", "suggest": {"action": "range", "start": 86, "end": 119}},
-  {"id": "R039", "kind": "MISSED_NAME", "doc": "H0131", "doc_type": "우편반송처리", "start": 21, "end": 24, "label": "person", "text": "황 담", "ctx": [[11, 31, "록  대상 고객: 황 담 카드번호: "], [31, 34, "<CARD_b9d05bf1>", 1]], "why": "항목명 뒤의 '황 담'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R040", "kind": "BOUNDARY_CUT", "doc": "H0132", "doc_type": "가맹점변경", "start": 32, "end": 55, "label": "address", "text": "대구광역시 수성구 솔내로 15, 2127호", "ctx": [[22, 23, "<PERSON_fe78c7e4>", 1], [23, 57, " 사업장 주소: 대구광역시 수성구 솔내로 15, 2127호 ("], [57, 60, "<ADDRESS_72ea2332>", 1], [60, 71, ") 대표자 연락처: "]], "why": "주소의 뒤의 동 이름이(가) 빠졌어요", "suggest": {"action": "range", "start": 32, "end": 61}},
-  {"id": "R041", "kind": "MISSED_NAME", "doc": "H0135", "doc_type": "카드발급심사", "start": 196, "end": 198, "label": "person", "text": "정별", "ctx": [[186, 208, " 문의함. 심사역 정별이 조건 안내 완료"]], "why": "업무 역할 뒤의 '정별'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R042", "kind": "LABEL_CONFLICT", "doc": "H0139", "doc_type": "해외송금접수", "start": 43, "end": 57, "label": "card_number", "text": "89984511034854", "ctx": [[33, 34, "<PHONE_1cc56fdc>", 1], [34, 63, ") 출금 계좌: 89984511034854 수취인: "], [63, 66, "<PERSON_1867c868>", 1], [66, 67, " "]], "why": "'출금 계좌:' 칸의 번호인데 '카드번호'(으)로 잡았어요", "suggest": {"action": "relabel", "options": ["account_number", "card_number"]}},
-  {"id": "R043", "kind": "MISSED_NAME", "doc": "H0139", "doc_type": "해외송금접수", "start": 147, "end": 149, "label": "person", "text": "조찬", "ctx": [[137, 149, "고 함. 처리자: 조찬"]], "why": "항목명 뒤의 '조찬'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R044", "kind": "MISSED_NAME", "doc": "H0139", "doc_type": "해외송금접수", "start": 113, "end": 114, "label": "person", "text": "린", "ctx": [[103, 124, "SD 3,000  린 님이 유학 중인 "]], "why": "문장 첫머리의 '린'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R045", "kind": "BOUNDARY_CUT", "doc": "H0141", "doc_type": "한도심사결과", "start": 8, "end": 32, "label": "address", "text": "경기도 성남시 분당구 마루길 151, 12층", "ctx": [[0, 33, "(15100) 경기도 성남시 분당구 마루길 151, 12층 "], [33, 36, "<PERSON_731b5718>", 1], [36, 42, " 님 귀하 "]], "why": "주소의 앞의 우편번호이(가) 빠졌어요", "suggest": {"action": "range", "start": 0, "end": 32}},
-  {"id": "R046", "kind": "BOUNDARY_CUT", "doc": "H0149", "doc_type": "한도심사결과", "start": 0, "end": 23, "label": "address", "text": "대구광역시 수성구 솔내로 15, 2127호", "ctx": [[0, 25, "대구광역시 수성구 솔내로 15, 2127호 ("], [25, 28, "<ADDRESS_72ea2332>", 1], [28, 30, ") "], [30, 33, "<PERSON_fe78c7e4>", 1], [33, 39, " 님 귀하 "]], "why": "주소의 뒤의 동 이름이(가) 빠졌어요", "suggest": {"action": "range", "start": 0, "end": 29}},
-  {"id": "R047", "kind": "LABEL_CONFLICT", "doc": "H0150", "doc_type": "자동이체신청서", "start": 71, "end": 84, "label": "resident_registration_number", "text": "2482678126095", "ctx": [[61, 90, " 계좌: 가람은행 2482678126095 연락처: "], [90, 94, "<PHONE_1672a9d6>", 1]], "why": "'출금 계좌: 가람은행' 칸의 번호인데 '주민등록번호'(으)로 잡았어요", "suggest": {"action": "relabel", "options": ["account_number", "resident_registration_number"]}},
-  {"id": "R048", "kind": "BOUNDARY_CUT", "doc": "H0150", "doc_type": "자동이체신청서", "start": 115, "end": 138, "label": "address", "text": "부산광역시 수영구 도담길 71, 1917호", "ctx": [[105, 106, "<PHONE_1672a9d6>", 1], [106, 140, " 청구지 주소: 부산광역시 수영구 도담길 71, 1917호 ("], [140, 143, "<ADDRESS_e07f000c>", 1], [143, 154, ")  위 계좌에서 매"]], "why": "주소의 뒤의 동 이름이(가) 빠졌어요", "suggest": {"action": "range", "start": 115, "end": 144}},
-  {"id": "R049", "kind": "MISSED_NAME", "doc": "H0152", "doc_type": "우편반송처리", "start": 21, "end": 23, "label": "person", "text": "정설", "ctx": [[11, 30, "록  대상 고객: 정설 카드번호: "], [30, 33, "<CARD_5a870a66>", 1]], "why": "항목명 뒤의 '정설'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R050", "kind": "BOUNDARY_CUT", "doc": "H0157", "doc_type": "자동이체신청서", "start": 118, "end": 140, "label": "address", "text": "대구광역시 달서구 마루길 112, 15층", "ctx": [[100, 101, "<PHONE_9d5e5267>", 1], [101, 150, " 청구지 주소: (42524) 대구광역시 달서구 마루길 112, 15층  위 계좌에서 매"]], "why": "주소의 앞의 우편번호이(가) 빠졌어요", "suggest": {"action": "range", "start": 110, "end": 140}},
-  {"id": "R051", "kind": "BOUNDARY_PARTICLE", "doc": "H0163", "doc_type": "대리인위임확인", "start": 148, "end": 150, "label": "person", "text": "홍윤", "ctx": [[138, 146, "<ACCOUNT_9ce1e36f>", 1], [146, 160, "  홍윤이 입원 중이어서 "]], "why": "'홍윤' 뒤에 '이'가 붙어 있어요. 보통은 조사라서 지금이 맞지만, 이름이 세 글자(예: 홍윤이)라면 한 글자 늘려 주세요", "suggest": {"action": "keep"}},
-  {"id": "R052", "kind": "MISSED_NAME", "doc": "H0171", "doc_type": "해외송금접수", "start": 66, "end": 68, "label": "person", "text": "신설", "ctx": [[56, 60, "<ACCOUNT_91dee54c>", 1], [60, 78, " 수취인: 신설 (현지 연락 이메"]], "why": "항목명 뒤의 '신설'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R053", "kind": "MISSED_NAME", "doc": "H0177", "doc_type": "대리인위임확인", "start": 17, "end": 19, "label": "person", "text": "안담", "ctx": [[7, 29, "확인서  위임인: 안담 / 주민등록번호 "]], "why": "항목명 뒤의 '안담'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R054", "kind": "MISSED_NAME", "doc": "H0177", "doc_type": "대리인위임확인", "start": 146, "end": 148, "label": "person", "text": "안담", "ctx": [[136, 144, "<ACCOUNT_3433e9af>", 1], [144, 158, "  안담이 입원 중이어서 "]], "why": "문장 첫머리의 '안담'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R055", "kind": "MISSED_NAME", "doc": "H0182", "doc_type": "녹취요약", "start": 36, "end": 38, "label": "person", "text": "재원", "ctx": [[26, 48, "5957  상담사 재원: 네, 새봄카드 "]], "why": "업무 역할 뒤의 '재원'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}},
-  {"id": "R056", "kind": "MISSED_NAME", "doc": "H0184", "doc_type": "법인카드소명", "start": 30, "end": 33, "label": "person", "text": "김재원", "ctx": [[20, 43, "센터 / 과장 / 김재원 사용일: 2026"]], "why": "소명자 칸의 '김재원'이(가) 이름으로 안 잡혔어요", "suggest": {"action": "add", "label": "person"}}
-];
+const DETECTION_SOURCE = {file:"미연결",made:"미연결",count:0};
+const DETECTION_REVIEW = [];
 /* DETECTION_REVIEW_END */
 
 // ───────── 연습용 데이터 (회원·권한 DB와 API 가 생기면 이 부분을 서버 응답으로 바꾸면 됨) ─────────
-const MOCK = {
-  kpi: {   // 기간별: [전체 회원, 증가율, 승인 대기, 활성 계정, 증가율, 검색 요청, 증가율]
-    7: [120, 1, 8, 112, 1, 2984, 4],
-    30: [120, 5, 8, 112, 2, 12430, 12],
-    90: [120, 14, 8, 112, 9, 35870, 21],
-  },
-  roles: [  // 색은 역할(항목)에 고정 — 순서·필터가 바뀌어도 같은 색
-    {code: "STAFF", name: "일반 직원", count: 68, color: "#2F6BFF"},
-    {code: "TEAM_LEAD", name: "팀장", count: 34, color: "#21A56B"},
-    {code: "ADMIN", name: "관리자", count: 18, color: "#8B5CF6"},
-  ],
-  newMembers: [
-    ["2025.05.18", "user124", "김**", "대기", "-"],
-    ["2025.05.17", "user123", "이**", "승인", "STAFF"],
-    ["2025.05.16", "user122", "박**", "승인", "TEAM_LEAD"],
-    ["2025.05.15", "user121", "최**", "승인", "STAFF"],
-    ["2025.05.14", "user120", "정**", "승인", "STAFF"],
-  ],
-  // 최근 활동 내역은 감사 기록(AUDIT)에서 가져옴
-  lastLogin: "2025.05.18 14:32 (admin01)",
-  securityAlerts: 0,
+const MOCK = {roles:[],kpi:{},newMembers:[],lastLogin:"미연결",securityAlerts:null
 };
 
 // ───────── 아이콘 ─────────
@@ -1192,8 +1015,7 @@ const STATUS = {
 const IDENTITY = {HR_VERIFIED: "공식 확인", DOC_CONFIRMED: "문서 확인", UNVERIFIED: "미확인"};
 const IDENTITY_DESC = {HR_VERIFIED: "인사 명부의 사번과 연결됨", DOC_CONFIRMED: "문서에서만 확인됨 (인사 명부 확인 전)", UNVERIFIED: "연결된 직원 정보 없음"};
 const ROLE_LABEL = {STAFF: "일반 직원", TEAM_LEAD: "팀장", ADMIN: "관리자"};
-const TEAMS = {T01: "디지털전략팀", T02: "인사팀", T03: "정보보호팀", T04: "고객보호팀", T05: "카드운영팀",
-               T06: "리스크관리팀", T07: "여신심사팀", T08: "채권관리팀", T09: "IT운영팀", T10: "고객센터"};
+const TEAMS = {};
 
 const day = n => new Date(Date.now() - n * 864e5);
 const ymd = d => `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
@@ -1202,50 +1024,18 @@ const ago = d => { const n = Math.round((Date.now() - d) / 864e5);
 
 // 연습용 회원 (이름은 성만, 이메일은 앞 글자만 보이게 가린 값. 실제 개인정보 없음)
 let nextMemberId = 14;
-const MEMBERS = [
-  [1, "admin01", "관**", "a***@saebom.example", "ADMIN", "ACTIVE", "HR_VERIFIED", "DE0101", "T03", 210, 0],
-  [2, "user124", "김**", "u***@saebom.example", "STAFF", "PENDING", "UNVERIFIED", "", "", 1, null],
-  [3, "user123", "이**", "u***@saebom.example", "STAFF", "ACTIVE", "HR_VERIFIED", "DE0018", "T01", 2, 0],
-  [4, "user122", "박**", "u***@saebom.example", "TEAM_LEAD", "ACTIVE", "HR_VERIFIED", "DE0031", "T10", 3, 1],
-  [5, "user121", "최**", "u***@saebom.example", "STAFF", "IDENTITY_PENDING", "DOC_CONFIRMED", "DE0024", "T07", 4, null],
-  [6, "user120", "정**", "u***@saebom.example", "STAFF", "ACTIVE", "HR_VERIFIED", "DE0012", "T06", 5, 3],
-  [7, "user119", "강**", "u***@saebom.example", "STAFF", "SUSPENDED", "HR_VERIFIED", "DE0009", "T04", 40, 12],
-  [8, "user118", "조**", "u***@saebom.example", "TEAM_LEAD", "ACTIVE", "HR_VERIFIED", "DE0005", "T04", 52, 0],
-  [9, "user117", "윤**", "u***@saebom.example", "STAFF", "IDENTITY_PENDING", "UNVERIFIED", "", "", 6, null],
-  [10, "user116", "장**", "u***@saebom.example", "STAFF", "PENDING", "DOC_CONFIRMED", "DE0027", "T05", 1, null],
-  [11, "user115", "임**", "u***@saebom.example", "STAFF", "ACTIVE", "HR_VERIFIED", "DE0015", "T05", 70, 2],
-  [12, "user114", "한**", "u***@saebom.example", "STAFF", "PENDING", "HR_VERIFIED", "DE0021", "T10", 0, null],
-  [13, "user113", "오**", "u***@saebom.example", "STAFF", "ACTIVE", "DOC_CONFIRMED", "DE0033", "T07", 95, 9],
-].map(([id, login, name, email, role, status, identity, emp, team, joined, last]) => ({
-  id, login, name, email, role, status, identity, employee_id: emp, team, joined: day(joined),
-  lastLogin: last == null ? null : day(last),
-  history: [{at: day(joined), text: "회원 가입"}].concat(status === "ACTIVE" || status === "SUSPENDED" || status === "IDENTITY_PENDING"
-    ? [{at: day(Math.max(joined - 1, 0)), text: "가입 승인 (admin01)"}] : [])
-    .concat(status === "SUSPENDED" ? [{at: day(12), text: "계정 정지 (admin02) · 사유: 비정상 접근 시도"}] : []),
-}));
+const MEMBERS = [];
 const mState = {tab: "", q: "", role: "", identity: ""};
 
 // 역할별 기본 권한 (팀 SQL 초안 role_info 기본값과 같음)
 const ROLE_DEFAULT = {STAFF: {scope: "OWN", restore: false}, TEAM_LEAD: {scope: "TEAM", restore: true}, ADMIN: {scope: "NONE", restore: false}};
 MEMBERS.forEach(m => Object.assign(m, ROLE_DEFAULT[m.role]));
-MEMBERS.find(m => m.login === "user115").scope = "TEAM";      // 연습용: 기본값과 다른 권한 예시
 
 // ───────── 팀 권한 정책 ─────────
 // 팀이 허용하는 최대 범위. 실제 권한 = 회원 개인 권한과 팀 정책 중 더 좁은 쪽 (연습용 기본값 — 팀 합의 필요)
 // [검색 최대 범위, 금융정보 문서 검색, 개인정보 복원, 복원할 수 있는 항목]
-const TEAM_POLICY = Object.fromEntries(Object.entries({
-  T01: ["TEAM", false, false, []],                                  // 디지털전략팀
-  T02: ["TEAM", false, true, ["PERSON", "PHONE", "EMAIL"]],          // 인사팀
-  T03: ["TEAM", true, true, ["PERSON", "PHONE", "EMAIL", "ADDRESS", "RRN", "ACCOUNT", "CARD"]],  // 정보보호팀 (조사 업무)
-  T04: ["TEAM", true, true, ["PERSON", "PHONE", "EMAIL", "ADDRESS"]], // 고객보호팀
-  T05: ["TEAM", true, true, ["PERSON", "CARD"]],                    // 카드운영팀
-  T06: ["TEAM", true, true, ["PERSON", "PHONE", "ACCOUNT", "CARD"]], // 리스크관리팀
-  T07: ["TEAM", true, true, ["PERSON", "RRN", "ACCOUNT"]],          // 여신심사팀
-  T08: ["TEAM", true, true, ["PERSON", "PHONE", "ACCOUNT"]],         // 채권관리팀
-  T09: ["OWN", false, false, []],                                   // IT운영팀
-  T10: ["TEAM", false, true, ["PERSON", "PHONE"]],                  // 고객센터
-}).map(([id, [maxScope, financial, restore, kinds]]) => [id, {maxScope, financial, restore, kinds}]));
-const NO_TEAM_POLICY = {maxScope: "OWN", financial: false, restore: false, kinds: []};   // 팀 미지정은 가장 좁게
+const TEAM_POLICY = {};
+const NO_TEAM_POLICY = {maxScope: "NONE", financial: false, restore: false, kinds: []};   // 팀 미지정은 가장 좁게
 const SCOPE_RANK = {NONE: 0, OWN: 1, TEAM: 2};
 const teamPolicy = id => TEAM_POLICY[id] || NO_TEAM_POLICY;
 
@@ -1260,7 +1050,7 @@ function effective(m, over = {}){
             : s.identity !== "HR_VERIFIED" ? "신원 공식 확인 전" : ""};
 }
 // 팀 정책을 짧게 (표·안내용)
-const policyText = p => `검색 최대 ${p.maxScope} · 금융 문서 ${p.financial ? "허용" : "거부"} · 복원 ${p.restore ? `허용(${p.kinds.map(k => PII_KIND[k]).join(", ")})` : "거부"}`;
+let policyText = p => `검색 최대 ${p.maxScope} · 금융 문서 ${p.financial ? "허용" : "거부"} · 복원 ${p.restore ? `허용(${p.kinds.map(k => PII_KIND[k]).join(", ")})` : "거부"}`;
 // 사람이 읽는 '할 수 있는 일' 목록
 function canDoList(e, teamName){
   return [
@@ -1296,46 +1086,8 @@ function logActivity(action, target, type, extra = {}){   // 화면에서 한 �
 }
 const sortedAudit = () => { if (AUDIT.unsort){ AUDIT.sort((a, b) => b.at - a.at); AUDIT.unsort = false; } return AUDIT; };
 
-(function seedAudit(){   // 연습용 기록
-  const at = (days, h, mi) => { const d = day(days); d.setHours(h, mi, 0, 0); return d > new Date() ? day(days + 1) : d; };
-  MEMBERS.forEach(m => m.history.forEach(h => {
-    if (h.text.startsWith("가입 승인")) addAudit({at: h.at, type: "APPROVE", action: "계정 승인", target: m.login, before: "승인 대기", after: STATUS[m.status === "SUSPENDED" ? "ACTIVE" : m.status].label});
-    if (h.text.startsWith("계정 정지")) addAudit({at: h.at, actor: "admin02", type: "SUSPEND", action: "회원 정지", target: m.login, before: "활성", after: "정지", reason: "비정상 접근 시도"});
-  }));
-  [
-    [3, 14, 32, "PERMISSION", "권한 변경 (역할 STAFF→TEAM_LEAD)", "user122", "역할 STAFF", "역할 TEAM_LEAD", "팀장 발령"],
-    [20, 11, 5, "PERMISSION", "권한 변경 (검색 범위 OWN→TEAM)", "user115", "검색 범위 OWN", "검색 범위 TEAM", "카드운영팀 업무 지원"],
-    [50, 9, 40, "PERMISSION", "권한 변경 (개인정보 복원 거부→허용)", "user118", "개인정보 복원 거부", "개인정보 복원 허용", "팀장 역할 기본값 적용"],
-    [1, 16, 20, "IDENTITY", "직원 신원 확인 완료", "user123", "문서 확인", "공식 확인", "인사팀 사번 대조"],
-    [4, 10, 12, "IDENTITY", "직원 신원 확인 완료", "user120", "문서 확인", "공식 확인", "인사팀 사번 대조"],
-    [8, 13, 0, "REJECT", "가입 거절", "user109", "승인 대기", "거절", "직원 명부에 없는 신청자"],
-    [15, 17, 45, "REJECT", "가입 거절", "user111", "승인 대기", "거절", "중복 가입 신청"],
-    [11, 9, 30, "RESUME", "정지 해제", "user110", "정지", "활성", "본인 확인 완료"],
-  ].forEach(([d, h, mi, type, action, target, before, after, reason]) => addAudit({at: at(d, h, mi), type, action, target, before, after, reason}));
-  // 개인정보 복원: 챗봇에서 회원이 요청한 기록 (복원된 실제 값은 남기지 않고 종류와 개수만)
-  // [며칠 전, 시, 분, 요청자, 문서, {종류: 개수}, 허용 여부, 목적]
-  [
-    [0, 9, 12, "user122", "H0017", {PERSON: 2, PHONE: 1}, true, "VOC 재문의 고객 회신"],
-    [0, 8, 40, "user120", "H0062", {PERSON: 1}, false, "감사 지적 내용 확인"],
-    [1, 15, 2, "user118", "H0014", {PERSON: 1, PHONE: 1}, true, "개인정보 처리 위반 조사"],
-    [1, 11, 25, "user113", "H0129", {PERSON: 2}, false, "고객 연락처 확인"],
-    [2, 14, 50, "user122", "H0024", {PERSON: 3, PHONE: 1}, true, "협력사 점검 결과 정리"],
-    [3, 10, 5, "user118", "H0101", {ACCOUNT: 1}, true, "환급 계좌 확인"],
-    [5, 16, 33, "user123", "H0055", {PERSON: 1}, false, "권한 신청 내용 확인"],
-    [6, 9, 58, "user122", "H0099", {PERSON: 1, EMAIL: 1}, true, "출장 보고 연락처 확인"],
-    [9, 13, 14, "user118", "H0049", {PERSON: 2, PHONE: 1}, true, "고객 민원 회신"],
-    [12, 15, 47, "user120", "H0085", {PERSON: 1, RRN: 1}, false, "감사 지적 내용 확인"],
-    [18, 10, 21, "user122", "H0153", {PERSON: 1}, true, "VOC 처리 결과 확인"],
-    [26, 14, 9, "user118", "H0086", {PERSON: 1, PHONE: 1}, true, "협력사 담당자 연락"],
-  ].forEach(([d, h, mi, who, doc, kinds, ok, purpose]) => {
-    const n = Object.values(kinds).reduce((s, v) => s + v, 0);
-    addAudit({at: at(d, h, mi), actor: who, type: "RESTORE", kinds, count: ok ? n : 0, purpose,
-      action: ok ? "개인정보 복원 허용" : "개인정보 복원 거부", target: `문서 ${doc}`, result: ok ? "허용" : "거부",
-      detail: ok ? `${kindsText(kinds)} 복원 (값은 기록하지 않음)` : `${kindsText(kinds)} 복원 요청`,
-      reason: ok ? "" : "복원 권한 없음"});
-  });
-  AUDIT.unsort = true;
-})();
+// 임시 데이터 초기화를 사용하지 않습니다.
+
 
 function drawMembers(){
   const count = s => MEMBERS.filter(m => !s || m.status === s).length;
@@ -1634,7 +1386,7 @@ function openPermEdit(m){
         ${Object.keys(ROLE_DEFAULT).map(r => radio("role", r, r, ROLE_LABEL[r], m.role === r)).join("")}</div>
         <div class="fhint" id="roleHint">역할을 바꾸면 검색 범위와 복원 권한이 그 역할의 기본값으로 바뀌어요.</div></fieldset>
       <div><label class="lbl" for="fTeam">소속 팀</label>
-        <select id="fTeam" name="team"><option value="">미지정</option>${Object.entries(TEAMS).map(([k, v]) => `<option value="${k}"${m.team === k ? " selected" : ""}>${v}</option>`).join("")}</select>
+        <select id="fTeam" name="team"><option value="">미지정</option>${Object.entries(TEAMS).map(([k, v]) => `<option value="${esc(k)}"${m.team === k ? " selected" : ""}>${esc(v)}</option>`).join("")}</select>
         <div class="fhint" id="teamHint"></div></div>
       <fieldset><legend>검색 범위</legend><div class="seg">
         ${Object.entries(SCOPE).map(([k, [t, sub]]) => radio("scope", k, t, sub, m.scope === k)).join("")}</div></fieldset>
@@ -1749,15 +1501,8 @@ const EMP_DESC = {
 const tState = {view: "emp", q: "", team: "", status: "", linked: false, sel: null};
 
 // 연습용 회원의 직원 ID를 실제 명부의 같은 팀 직원에 맞춤 (문서 확인 직원 먼저)
-(function relinkMockMembers(){
-  const used = new Set();
-  MEMBERS.forEach(m => {
-    if (!m.employee_id) return;
-    const pick = s => EMPLOYEES.find(e => e.team_id === m.team && e.status === s && !used.has(e.id));
-    const e = pick("DOC_CONFIRMED") || pick("EMPLOYEE_CANDIDATE");
-    if (e){ m.employee_id = e.id; used.add(e.id); } else { m.employee_id = ""; m.identity = "UNVERIFIED"; }
-  });
-})();
+// 임시 데이터 초기화를 사용하지 않습니다.
+
 
 const linkedMember = e => MEMBERS.find(m => m.employee_id === e.id);
 // 공식 확인 = 인사 명부로 확인됨 (명부 값, 또는 회원관리에서 사번으로 '신원 확인 완료'한 회원과 연결됨)
@@ -1765,7 +1510,7 @@ const empStatus = e => (e.official === "HR_VERIFIED" || linkedMember(e)?.identit
 const empRank = e => [e.position, e.title].filter(Boolean).join(" · ") || "직급 미확인";
 
 function teamFilterOptions(){
-  return `<option value="">모든 팀</option>${Object.entries(TEAMS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}<option value="NONE">팀 미확인</option>`;
+  return `<option value="">모든 팀</option>${Object.entries(TEAMS).map(([k, v]) => `<option value="${esc(k)}">${esc(v)}</option>`).join("")}<option value="NONE">팀 미확인</option>`;
 }
 
 function drawTeams(){
@@ -1816,8 +1561,8 @@ function drawTeams(){
   if (!rows.some(e => e.id === tState.sel)) tState.sel = rows[0]?.id || null;
   $("tBody").innerHTML = rows.length ? rows.map(e => {
     const s = empStatus(e), lm = linkedMember(e);
-    return `<tr class="${e.id === tState.sel ? "sel" : ""}${s === "UNRESOLVED" ? " unres" : ""}" data-emp="${e.id}" tabindex="0" aria-label="${e.id} ${EMP_STATUS[s]}">
-      <td><div class="who"><span class="eav" aria-hidden="true">${e.id.slice(-2)}</span><div><b>${e.id}</b><small>${esc(empRank(e))}</small></div></div></td>
+    return `<tr class="${e.id === tState.sel ? "sel" : ""}${s === "UNRESOLVED" ? " unres" : ""}" data-emp="${esc(e.id)}" tabindex="0" aria-label="${esc(e.id)} ${EMP_STATUS[s]}">
+      <td><div class="who"><span class="eav" aria-hidden="true">${esc(e.id.slice(-2))}</span><div><b>${esc(e.id)}</b><small>${esc(empRank(e))}</small></div></div></td>
       <td>${e.team_id ? `<span class="tag2" style="background:var(--head);color:var(--ink2)">${esc(TEAMS[e.team_id] || e.team_id)}</span>` : '<span style="color:var(--ink3)">팀 미확인</span>'}</td>
       <td><span class="st st-${s}">${EMP_STATUS[s]}</span>${s === "UNRESOLVED" ? `<br><small style="color:var(--err)">${esc(e.risk)}</small>` : ""}</td>
       <td><span class="ev">${esc(e.evidence)}</span></td>
@@ -1832,8 +1577,8 @@ function drawEmpCard(){
   const s = empStatus(e), lm = linkedMember(e);
   const li = (k, v) => `<li><span>${k}</span><span>${v}</span></li>`;
   $("tCard").innerHTML = `
-    <div class="bigav" aria-hidden="true">${e.id.slice(-2)}</div>
-    <h3>${e.id}</h3><div class="sub">${esc(empRank(e))}</div>
+    <div class="bigav" aria-hidden="true">${esc(e.id.slice(-2))}</div>
+    <h3>${esc(e.id)}</h3><div class="sub">${esc(empRank(e))}</div>
     <div class="ctr"><span class="st st-${s}">${EMP_STATUS[s]}</span></div>
     <ul>
       ${li("소속 팀", esc(TEAMS[e.team_id] || "팀 미확인"))}
@@ -1849,9 +1594,9 @@ function drawEmpCard(){
     <h4>연결된 회원</h4>
     ${lm ? `<ul>${li("아이디", `<b>${esc(lm.login)}</b>`)}${li("계정 상태", `<span class="tag2 s-${lm.status}">${STATUS[lm.status].label}</span>`)}${li("역할", lm.role)}</ul>
       <div class="btnRow"><button type="button" class="ghostBtn" data-goto-member="${lm.id}">회원·권한 관리에서 보기</button>
-        <button type="button" class="ghostBtn" data-unlink="${e.id}" style="color:var(--err)">연결 해제</button></div>`
+        <button type="button" class="ghostBtn" data-unlink="${esc(e.id)}" style="color:var(--err)">연결 해제</button></div>`
     : `<p style="color:var(--ink3);font-size:13.5px;margin:0 0 10px">아직 연결된 회원 계정이 없어요.</p>
-      <div class="btnRow"><button type="button" class="primaryBtn" data-link="${e.id}" ${s === "UNRESOLVED" ? "disabled" : ""}>회원 연결</button></div>`}`;
+      <div class="btnRow"><button type="button" class="primaryBtn" data-link="${esc(e.id)}" ${s === "UNRESOLVED" ? "disabled" : ""}>회원 연결</button></div>`}`;
 }
 
 function drawTeamList(){
@@ -1863,7 +1608,7 @@ function drawTeamList(){
   $("tTeamBody").innerHTML = rows.map(r => {
     const meta = TEAM_META[r.id], p = teamPolicy(r.id);
     return `<tr${r.id && r.id === tState.newTeam ? ' class="sel"' : ""}>
-    <td>${r.id ? `<button type="button" class="linkBtn" data-team-sheet="${r.id}" title="이 팀 직원이 할 수 있는 일 보기">${esc(r.name)}</button>` : `<b>${esc(r.name)}</b>`}
+    <td>${r.id ? `<button type="button" class="linkBtn" data-team-sheet="${esc(r.id)}" title="이 팀 직원이 할 수 있는 일 보기">${esc(r.name)}</button>` : `<b>${esc(r.name)}</b>`}
       ${meta ? ' <span class="diffMark" style="background:var(--blue-bg);color:var(--blue)">새 팀</span>' : ""}
       ${meta?.desc ? `<small style="display:block;color:var(--ink3)">${esc(meta.desc)}</small>` : ""}</td>
     <td class="ev">${r.id || "—"}</td>
@@ -1871,11 +1616,11 @@ function drawTeamList(){
     <td>${r.members}명</td>
     <td>${policyChips(p)}${r.id ? "" : '<small style="display:block;color:var(--ink3)">팀이 없으면 가장 좁게</small>'}</td>
     <td>${meta ? `${ymd(meta.created)} <small style="color:var(--ink3)">· ${esc(meta.by)}</small>` : '<span style="color:var(--ink3)">문서 명부</span>'}</td>
-    <td style="white-space:nowrap">${r.id ? `<button class="editBtn" type="button" data-team-policy="${r.id}">권한 설정</button> ` : ""}<button class="editBtn" type="button" data-team-go="${r.id || "NONE"}" ${r.total ? "" : "disabled"}>직원 ${r.total}명 보기</button></td></tr>`;
+    <td style="white-space:nowrap">${r.id ? `<button class="editBtn" type="button" data-team-policy="${esc(r.id)}">권한 설정</button> ` : ""}<button class="editBtn" type="button" data-team-go="${r.id || "NONE"}" ${r.total ? "" : "disabled"}>직원 ${r.total}명 보기</button></td></tr>`;
   }).join("");
 }
 
-const policyChips = p => `<span class="pchip scope" title="문서 검색 최대 범위">검색 ${p.maxScope}</span>`
+let policyChips = p => `<span class="pchip scope" title="문서 검색 최대 범위">검색 ${p.maxScope}</span>`
   + `<span class="pchip${p.financial ? " on" : ""}" title="금융정보 문서 검색">금융 ${p.financial ? "O" : "X"}</span>`
   + `<span class="pchip${p.restore ? " on" : ""}" title="${p.restore ? "복원 가능: " + p.kinds.map(k => PII_KIND[k]).join(", ") : "복원 불가"}">복원 ${p.restore ? p.kinds.length + "종" : "X"}</span>`;
 
@@ -1926,7 +1671,7 @@ function effectiveWith(m, policy){   // 팀 정책을 잠깐 바꿔서 계산
 // ── 팀 만들기 (1 이름 → 2 권한 → 3 확인) ──
 const TEAM_META = {};   // 이 화면에서 만든 팀: {설명, 만든 날, 만든 사람}
 const nameKey = s => s.replace(/\s+/g, "").toLowerCase();
-const nextTeamId = () => `T${String(Math.max(0, ...Object.keys(TEAMS).map(k => Number(k.slice(1)))) + 1).padStart(2, "0")}`;
+const nextTeamId = () => `T${String(Math.max(0, ...Object.keys(TEAMS).filter(k=>/^T[0-9]+$/.test(k)).map(k=>Number(k.slice(1))))+1).padStart(2,"0")}`;
 
 async function createTeam(){
   const id = nextTeamId();
@@ -2045,7 +1790,7 @@ async function linkEmployee(e){
   const options = MEMBERS.filter(m => m.status !== "SUSPENDED" && m.login !== "admin01")
     .sort((a, b) => (a.employee_id ? 1 : 0) - (b.employee_id ? 1 : 0) || a.login.localeCompare(b.login))
     .map(m => `<option value="${m.id}">${esc(m.login)} · ${STATUS[m.status].label}${m.employee_id ? ` (지금 ${m.employee_id}와 연결됨 → 옮김)` : ""}</option>`).join("");
-  const r = await ask({title: `${e.id} 직원과 회원 연결`, yes: "연결",
+  const r = await ask({title: `${esc(e.id)} 직원과 회원 연결`, yes: "연결",
     text: `회원 계정이 이 직원(${esc(TEAMS[e.team_id] || "팀 미확인")}, ${EMP_STATUS[s]})이라고 연결합니다.<br>
       연결하면 회원은 <b>공식 확인 전까지 '신원 확인 대기'</b>로 바뀌고 개인정보 복원 권한이 꺼져요.`,
     fields: `<label for="lkMember">연결할 회원</label><select id="lkMember" name="member">${options}</select>
@@ -2056,23 +1801,23 @@ async function linkEmployee(e){
   Object.assign(m, {employee_id: e.id, team: e.team_id, identity: e.status === "DOC_CONFIRMED" ? "DOC_CONFIRMED" : "UNVERIFIED", restore: false});
   if (m.status === "ACTIVE") m.status = "IDENTITY_PENDING";
   if (m.scope === "TEAM" && !m.team) m.scope = "OWN";
-  m.history.push({at: new Date(), text: `직원 연결 ${before ? `${before} → ` : ""}${e.id} (admin01) · 사유: ${r.reason}`});
-  logActivity(`직원 연결 (${before ? before + " → " : ""}${e.id})`, m.login, "LINK",
+  m.history.push({at: new Date(), text: `직원 연결 ${before ? `${before} → ` : ""}${esc(e.id)} (admin01) · 사유: ${r.reason}`});
+  logActivity(`직원 연결 (${before ? before + " → " : ""}${esc(e.id)})`, m.login, "LINK",
     {before: before || "연결 없음", after: e.id, reason: r.reason});
-  toast(`${m.login} 회원을 ${e.id} 직원과 연결했어요 · 신원 확인 대기`);
+  toast(`${m.login} 회원을 ${esc(e.id)} 직원과 연결했어요 · 신원 확인 대기`);
   drawTeams();
 }
 
 async function unlinkEmployee(e){
   const m = linkedMember(e);
   const r = await ask({title: "연결을 해제할까요?", yes: "연결 해제", danger: true, check: needReason,
-    text: `<b>${esc(m.login)}</b> 회원과 <b>${e.id}</b> 직원의 연결을 끊어요. 회원은 '신원 확인 대기'가 되고 개인정보 복원 권한이 꺼져요.`,
+    text: `<b>${esc(m.login)}</b> 회원과 <b>${esc(e.id)}</b> 직원의 연결을 끊어요. 회원은 '신원 확인 대기'가 되고 개인정보 복원 권한이 꺼져요.`,
     fields: reasonField("예: 잘못 연결함")});
   if (!r) return;
   Object.assign(m, {employee_id: "", identity: "UNVERIFIED", restore: false});
   if (m.status === "ACTIVE") m.status = "IDENTITY_PENDING";
-  m.history.push({at: new Date(), text: `직원 연결 해제 ${e.id} (admin01) · 사유: ${r.reason}`});
-  logActivity(`직원 연결 해제 (${e.id})`, m.login, "UNLINK", {before: e.id, after: "연결 없음", reason: r.reason});
+  m.history.push({at: new Date(), text: `직원 연결 해제 ${esc(e.id)} (admin01) · 사유: ${r.reason}`});
+  logActivity(`직원 연결 해제 (${esc(e.id)})`, m.login, "UNLINK", {before: e.id, after: "연결 없음", reason: r.reason});
   toast(`${m.login} 회원의 직원 연결을 해제했어요`);
   drawTeams();
 }
@@ -2191,14 +1936,14 @@ function drawActivity(){
     if (label !== last){ html += `<tr class="day"><td colspan="6">${label}</td></tr>`; last = label; }
     const open = aState.open.has(r.id);
     html += `<tr>
-      <td><button class="chev" type="button" data-open="${r.id}" aria-expanded="${open}" aria-label="자세히 보기">›</button></td>
+      <td><button class="chev" type="button" data-open="${esc(r.id)}" aria-expanded="${open}" aria-label="자세히 보기">›</button></td>
       <td class="tm"><b>${fmtDT(r.at).slice(5)}</b><small>${sinceText(r.at)}</small></td>
       <td><span class="actor"><i aria-hidden="true">${esc(r.actor.slice(0, 1).toUpperCase())}</i>${esc(r.actor)}</span></td>
       <td><span class="atag ${auditTone(r)}">${AUDIT_ICON[r.type]} ${esc(r.type === "RESTORE" ? `복원 ${r.result}` : AUDIT_TYPE[r.type])}</span></td>
       <td class="ent"><small>${r.type === "RESTORE" ? "문서" : r.type.startsWith("TEAM_") ? "팀" : "회원"}</small><b>${esc(r.target.replace(/^문서 /, ""))}</b></td>
       <td class="chg">${esc(changeText(r))}</td></tr>`;
     if (open) html += `<tr class="detailRow"><td></td><td colspan="5"><div class="dgrid">
-      <div><span>기록 번호</span>#${r.id}</div><div><span>일시</span>${fmtDT(r.at)}</div><div><span>작업</span>${esc(r.action)}</div>
+      <div><span>기록 번호</span>#${esc(r.id)}</div><div><span>일시</span>${fmtDT(r.at)}</div><div><span>작업</span>${esc(r.action)}</div>
       <div><span>작업자</span>${esc(r.actor)}</div><div><span>대상</span>${esc(r.target)}</div><div><span>사유</span>${esc(r.reason || "—")}</div>
       <div><span>변경 전</span>${esc(r.before || "—")}</div><div><span>변경 후</span>${esc(r.after || "—")}</div><div><span>내용</span>${esc(r.detail || "—")}</div>
       ${r.purpose ? `<div><span>복원 목적</span>${esc(r.purpose)}</div>` : ""}
@@ -2718,8 +2463,7 @@ function route(){
   }
   window.scrollTo(0, 0);
 }
-window.addEventListener("hashchange", route);
-route();
+// 실제 DB를 불러온 후 연결 스크립트에서 화면을 시작합니다.
 
 // ───────── 위쪽 사용자 메뉴·로그아웃 ─────────
 $("meBtn").onclick = e => {
@@ -2733,5 +2477,6 @@ document.querySelectorAll("[data-logout]").forEach(b => b.onclick = async () => 
   try { await fetch("/api/logout", {method: "POST"}); } finally { location.replace("/login"); }
 });
 </script>
+<script src="/admin-assets/business_admin.js"></script>
 </body>
 </html>

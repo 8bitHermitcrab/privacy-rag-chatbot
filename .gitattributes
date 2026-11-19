@@ -1,0 +1,5 @@
+# Windows에서 받아도 Docker·Ubuntu 셸 파일은 LF로 유지합니다.
+*.sh text eol=lf
+*.sql text eol=lf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

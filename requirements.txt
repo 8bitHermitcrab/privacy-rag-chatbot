@@ -1,9 +1,14 @@
-psycopg[binary]==3.1.18
-pgvector==0.2.5
-numpy==1.26.4
-requests==2.31.0
-python-dotenv==1.0.1
-torch==2.11.0
-transformers==5.20.2
+# Windows Python 3.14에서 검증한 직접 의존성입니다.
+# 기존 Streamlit 데모(app.py)는 선택 기능이며 이 설치 목록에 포함하지 않습니다.
+psycopg[binary]==3.3.6
+pgvector==0.5.1
+numpy==2.5.4
+requests==2.34.2
+python-dotenv==1.2.4
+torch==2.15.0
+transformers==5.21.0
 fastapi==0.162.0
 uvicorn==0.54.0
+alembic==1.20.1
+SQLAlchemy==2.1.9
+psutil==7.2.2
