@@ -30,6 +30,26 @@ def container(status='running', port=5433, image='pgvector/pgvector:pg16'):
 
 class LauncherTest(unittest.TestCase):
 
+    def test_child_error_is_shown_without_settings_secrets(self):
+        fake=SimpleNamespace(returncode=1,stdout='',stderr='ERROR:__main__: DB 준비 실패: fixture-private-password')
+        with mock.patch.object(launcher,'command',return_value=fake),mock.patch('dotenv.dotenv_values',return_value={'MIGRATION_PASSWORD':'fixture-private-password'}):
+            with self.assertRaises(launcher.StartError) as error:
+                launcher.run_python(['-m','starter.migrate'],'DB 준비')
+        self.assertIn('DB 준비 실패',str(error.exception))
+        self.assertIn('[가림]',str(error.exception))
+        self.assertNotIn('fixture-private-password',str(error.exception))
+
+    def test_setup_precedes_version_upgrade(self):
+        calls=[]
+        with contextlib.ExitStack() as stack:
+            for name,value in [('environment',{'DB_PORT':'5433'}),('prepare_private_dir',None),('docker_executable','docker'),('ensure_docker',None),('ensure_database',None),('wait_database',None),('prepare_accounts',None),('ensure_manager',True)]:
+                stack.enter_context(mock.patch.object(launcher,name,return_value=value))
+            stack.enter_context(mock.patch.object(launcher,'launch_lock',return_value=contextlib.nullcontext()))
+            stack.enter_context(mock.patch.object(launcher,'run_python',side_effect=lambda args,*a,**kw:calls.append(args)))
+            launcher.launch(open_browser=False)
+        self.assertEqual(calls,[['-m','starter.migrate','--prepare'],['-m','starter.migrate']])
+
+
     def test_running_db_is_preserved_without_compose(self):
         with mock.patch.object(launcher, 'command', return_value=result(text=container())) as run:
             launcher.ensure_database('docker', {'DB_PORT': '5433'})

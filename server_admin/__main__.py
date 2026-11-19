@@ -32,8 +32,11 @@ def command(args, *, timeout=30):
 def run_python(arguments, label, timeout=90):
     result=command([sys.executable,'-B',*arguments],timeout=timeout)
     if result.returncode:
-        # 하위 도구의 원문 출력에는 연결 정보가 포함될 수 있으므로 표시하지 않습니다.
-        raise StartError(label+'에 실패했습니다. 설정과 DB 권한을 확인하세요.')
+        # DB 준비 도구가 정리한 오류 줄만 비밀 설정을 한 번 더 가려 표시합니다.
+        from starter.migrate import redact_settings
+        messages=[line.strip() for line in result.stderr.splitlines() if line.startswith('ERROR:')]
+        detail=redact_settings(messages[-1]) if messages else '설정과 DB 권한을 확인하세요.'
+        raise StartError(label+'에 실패했습니다. '+detail)
 
 def environment():
     from dotenv import dotenv_values
@@ -133,11 +136,13 @@ def wait_database(config):
     while time.monotonic()<deadline:
         try:
             with psycopg.connect(host=config.get('DB_HOST','localhost'),port=int(config.get('DB_PORT','5433')),
-                dbname=config.get('POSTGRES_DB','pii_rag'),user='rag_user',password=config['RAG_PASSWORD'],
+                dbname=config.get('POSTGRES_DB','pii_rag'),user=config.get('POSTGRES_USER','admin'),password=config['POSTGRES_PASSWORD'],
                 connect_timeout=2,options='-c default_transaction_read_only=on') as connection:
                 connection.execute('SELECT 1').fetchone()
             return
-        except psycopg.Error:
+        except psycopg.Error as error:
+            if getattr(error,'sqlstate',None) in ('28P01','28000') or 'password authentication failed' in str(error):
+                raise StartError('DB 관리자 인증에 실패했습니다. POSTGRES_USER·POSTGRES_PASSWORD를 기존 DB와 맞추세요.') from None
             time.sleep(1)
     raise StartError('DB 연결 준비 시간이 초과됐습니다. DB 포트·계정·비밀번호를 확인하세요.')
 
@@ -154,6 +159,7 @@ def prepare_accounts():
         with business_connection() as business_db:
             business_db.execute('SELECT document_id FROM rag.document_info LIMIT 0')
             business_db.execute('SELECT team_id FROM auth.team_position_policy LIMIT 0')
+            business_db.execute('SELECT 1 FROM auth.user_info,auth.employee_info,auth.team_info,auth.role_info,auth.permission_change_log LIMIT 0')
         business_ready = True
     except Exception:
         business_ready = False
@@ -247,6 +253,7 @@ def launch(*,open_browser=True):
         print('[2/5] DB 시작 및 연결 확인',flush=True)
         ensure_database(executable,config);wait_database(config)
         print('[3/5] DB 버전 확인 및 미적용 변경 반영',flush=True)
+        run_python(['-m','starter.migrate','--prepare'],'DB 전용 계정·기본 구조 준비',timeout=180)
         run_python(['-m','starter.migrate'],'DB 버전 확인·변경',timeout=180)
         print('[4/5] 관리자 계정과 조회 설정 확인',flush=True)
         prepare_accounts()

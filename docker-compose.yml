@@ -14,7 +14,7 @@ services:
       MIGRATION_PASSWORD: ${MIGRATION_PASSWORD:?set MIGRATION_PASSWORD in .env}
       EMBED_DIM: ${EMBED_DIM:-1536}
     ports:
-      - "5433:5432"
+      - "${DB_PORT:-5433}:5432"
     volumes:
       - ./init:/docker-entrypoint-initdb.d:ro
       - pgdata:/var/lib/postgresql/data
