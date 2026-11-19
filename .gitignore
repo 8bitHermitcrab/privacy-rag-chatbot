@@ -41,3 +41,25 @@ $RECYCLE.BIN/
 .ipynb_checkpoints/
 .vscode/
 .idea/
+# 서버 관리자 비밀 설정·개인키·실행 기록
+.env.*
+!.env.example
+*.pem
+*.key
+*.log
+initial-login.txt
+server_admin/.runtime/
+server_admin/**/auth.json
+server_admin/**/monitor.json
+server_admin/**/login_attempts.json
+server_admin/**/audit*.jsonl
+
+# 서버 제어 비밀 상태
+server_admin/**/operations.json
+server_admin/**/processes.json
+server_admin/**/remote_hosts.json
+server_admin/**/agent.json
+
+# 업무 계정의 비밀 설정은 저장소 밖에서만 사용
+business-runtime.json
+business-initial-login.txt

@@ -21,6 +21,12 @@
   /* ── 왼쪽: 어흥이 무대 ── */
   .stage{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:28px 24px;
          background:radial-gradient(circle at 50% 78%,#FFD58F 0,var(--stage) 38%,#F9D9A4 100%);border-right:3px dashed var(--line);overflow:hidden}
+  .back{position:absolute;top:18px;left:16px;z-index:3;width:42px;height:42px;display:grid;place-items:center;border-radius:50%;
+        background:var(--card);border:3px solid var(--ink);color:var(--ink);box-shadow:0 3px 0 rgba(74,46,20,.18);transition:transform .1s,background .15s}
+  .back:hover{background:#FFF1DB}
+  .back:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(74,46,20,.18)}
+  .back:focus-visible{outline:3px solid var(--mane);outline-offset:3px}
+  .back svg{width:22px;height:22px}
   .stage h1{position:absolute;top:22px;left:0;right:0;text-align:center;margin:0;font-family:'Jua',sans-serif;font-weight:400;font-size:26px;line-height:1.2}
   .stage h1 small{display:block;font-family:inherit;font-size:14px;color:var(--ink2);margin-top:4px}
   .speech{position:relative;width:100%;max-width:320px;min-height:96px;background:var(--card);border:3px solid var(--ink);border-radius:24px;
@@ -116,6 +122,7 @@
     .stage{flex-direction:row;padding:12px 16px;gap:12px;border-right:none;border-bottom:3px dashed var(--line);justify-content:flex-start}
     .stage h1,.ground{display:none}
     .lionWrap{width:96px;flex:none;order:-1}
+    .back{position:static;flex:none;order:-2;width:38px;height:38px}
     .speech{font-size:15px;min-height:0;padding:10px 12px;max-width:none;flex:1}
     .speech::after{left:-15px;top:50%;bottom:auto;transform:translateY(-50%) rotate(135deg)}
     .chat{padding:0 16px;min-height:0}
@@ -126,6 +133,9 @@
 <body>
 <div class="app">
   <aside class="stage" id="stage">
+    <a class="back" href="/" aria-label="시작 화면으로 돌아가기" title="시작 화면으로">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </a>
     <h1>아기 사자 어흥이<small>개인정보는 이름표로 숨기고 기록을 찾아줘요</small></h1>
     <div class="speech" id="speech" aria-live="polite"></div>
     <div class="lionWrap">

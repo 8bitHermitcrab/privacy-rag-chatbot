@@ -63,11 +63,11 @@ def _llm(messages):
         return r.json()["choices"][0]["message"]["content"]
 
 
-def answer(query, k=3):
-    masked_q, q_tokens, docs = search(query, k)
+def answer(query, k=3, allowed_doc_ids=None):
+    masked_q, q_tokens, docs = search(query, k, allowed_doc_ids=allowed_doc_ids)
     context = "\n\n".join(f"[{d['doc_id']}]\n{d['masked_text']}" for d in docs)
     result = {"masked_query": masked_q, "query_tokens": q_tokens, "docs": docs, "answer": None}
-    if not config.LLM_API_KEY:
+    if not docs or not config.LLM_API_KEY:
         return result
     result["answer"] = _llm([{"role": "system", "content": SYSTEM},
                              {"role": "user", "content": f"문서:\n{context}\n\n질문: {masked_q}"}])

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>어흥이 시작하기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --card:#FFFDF8; --ink:#4A2E14; --ink2:#7A5634;
+    --mane:#E8892B; --mane2:#C9671A; --accent:#E26D2C;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px 16px;
+       background:radial-gradient(circle at 50% 100%,#FFD58F 0,#FCE5BC 45%,#FBDDA8 100%);
+       color:var(--ink);font-family:'Gowun Dodum','Apple SD Gothic Neo','Malgun Gothic',sans-serif;word-break:keep-all}
+  main{width:100%;max-width:500px;display:flex;flex-direction:column;align-items:center}
+  h1{margin:0;font-family:'Jua',sans-serif;font-weight:400;font-size:34px;line-height:1.2;text-align:center}
+  .sub{margin:8px 0 22px;color:var(--ink2);font-size:15px;text-align:center}
+
+  .speech{position:relative;width:100%;max-width:375px;background:var(--card);border:3px solid var(--ink);border-radius:24px;
+          padding:16px 18px;font-size:19px;line-height:1.75;text-align:center;box-shadow:0 5px 0 rgba(74,46,20,.18)}
+  .speech::after{content:"";position:absolute;left:50%;bottom:-14px;transform:translateX(-50%) rotate(45deg);width:22px;height:22px;
+                 background:var(--card);border-right:3px solid var(--ink);border-bottom:3px solid var(--ink)}
+
+  .lion{width:180px;margin-top:14px;position:relative;z-index:2;margin-bottom:-38px}
+  .lion svg{display:block;width:100%;height:auto;overflow:visible}
+  #head{transform-box:fill-box;transform-origin:50% 100%;animation:sway 4s ease-in-out infinite}
+  .eye{transform-box:fill-box;transform-origin:center;animation:blink 4.5s infinite}
+
+  .card{width:100%;background:var(--card);border:3px solid var(--ink);border-radius:26px;padding:72px 26px 24px;
+        box-shadow:0 7px 0 rgba(74,46,20,.18)}
+  .go{display:block;width:100%;font-family:'Jua',sans-serif;font-size:24px;color:#fff;text-decoration:none;text-align:center;
+      padding:12px 0;border-radius:999px;background:var(--accent);border:3px solid var(--ink);
+      box-shadow:inset 0 0 0 3px #FFE3C8,0 4px 0 var(--mane2);cursor:pointer;transition:transform .1s,box-shadow .1s}
+  .go:hover{background:#EA7A37}
+  .go:active{transform:translateY(3px);box-shadow:inset 0 0 0 3px #FFE3C8,0 1px 0 var(--mane2)}
+  .go:focus-visible{outline:3px solid var(--mane);outline-offset:4px}
+
+  @keyframes sway{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+  @keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+  @media (max-width:420px){h1{font-size:28px}.speech{font-size:17px}.lion{width:150px;margin-bottom:-32px}.card{padding-top:60px}}
+</style>
+</head>
+<body>
+<main>
+  <h1>아기 사자 어흥이</h1>
+  <p class="sub">버튼을 누르면 바로 상담 기록을 찾을 수 있어요</p>
+
+  <div class="speech">어흥! 반가워요!<br>아래 버튼을 눌러 들어오세요</div>
+
+  <div class="lion">
+    <svg viewBox="0 0 180 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="아기 사자 어흥이">
+      <g id="head">
+        <g fill="#E8892B" id="mane"></g>
+        <circle cx="90" cy="90" r="62" fill="#D9771F"/>
+        <circle cx="46" cy="46" r="16" fill="#F7C46C"/><circle cx="46" cy="46" r="8" fill="#F2A35E"/>
+        <circle cx="134" cy="46" r="16" fill="#F7C46C"/><circle cx="134" cy="46" r="8" fill="#F2A35E"/>
+        <circle cx="90" cy="94" r="50" fill="#F7C46C"/>
+        <ellipse cx="90" cy="116" rx="24" ry="17" fill="#FFF1D6"/>
+        <g class="eye"><ellipse cx="70" cy="88" rx="6.5" ry="8" fill="#4A2E14"/><circle cx="72" cy="85" r="2.4" fill="#fff"/></g>
+        <g class="eye"><ellipse cx="110" cy="88" rx="6.5" ry="8" fill="#4A2E14"/><circle cx="112" cy="85" r="2.4" fill="#fff"/></g>
+        <ellipse cx="56" cy="106" rx="8.5" ry="5.5" fill="#F29C8B" opacity=".7"/>
+        <ellipse cx="124" cy="106" rx="8.5" ry="5.5" fill="#F29C8B" opacity=".7"/>
+        <path d="M82 107 Q90 102 98 107 Q90 116 82 107Z" fill="#7A3E1A"/>
+        <path d="M90 113 V117 M90 117 Q83 124 76 120 M90 117 Q97 124 104 120" stroke="#7A3E1A" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+      </g>
+      <!-- 카드 위에 올린 앞발 -->
+      <g><ellipse cx="56" cy="174" rx="20" ry="12" fill="#F7C46C"/><path d="M49 172 v6 M56 172 v7 M63 172 v6" stroke="#C9671A" stroke-width="2.2" stroke-linecap="round"/></g>
+      <g><ellipse cx="124" cy="174" rx="20" ry="12" fill="#F7C46C"/><path d="M117 172 v6 M124 172 v7 M131 172 v6" stroke="#C9671A" stroke-width="2.2" stroke-linecap="round"/></g>
+    </svg>
+  </div>
+
+  <div class="card">
+    <a class="go" href="/chat">어흥!</a>
+  </div>
+</main>
+
+<script>
+// 갈기 (원 12개)
+document.getElementById("mane").innerHTML = Array.from({length:12}, (_, i) => {
+  const a = i * Math.PI / 6;
+  return `<circle cx="${(90 + 60 * Math.cos(a)).toFixed(1)}" cy="${(92 + 60 * Math.sin(a)).toFixed(1)}" r="25"/>`;
+}).join("");
+</script>
+</body>
+</html>

@@ -71,7 +71,10 @@ def mask_query(query):
     return d["masked"], d["tokens"]
 
 
-def _fetch(cur, where, params, vec, limit):
+def _fetch(cur, where, params, vec, limit, allowed_doc_ids=None):
+    if allowed_doc_ids is not None:
+        where += (" AND " if where else "WHERE ") + "doc_id = ANY(%s::text[])"
+        params = (*params, list(allowed_doc_ids))
     cur.execute(f"SELECT {_COLS} FROM rag.chunks {where} ORDER BY embedding <=> %s LIMIT %s",
                 (vec, *params, vec, limit))
     return [{"doc_id": d, "chunk_id": c, "masked_text": t, "tokens": list(tk), "score": float(s)}
@@ -91,7 +94,10 @@ def _merge(groups, k):
     return out
 
 
-def search(query, k=10, conn=None, mode=None):
+def search(query, k=10, conn=None, mode=None, allowed_doc_ids=None):
+    # 웹 요청은 허용된 문서만 SQL 후보에 넣습니다. 빈 목록은 외부 API 호출 전 차단합니다.
+    if allowed_doc_ids is not None and not allowed_doc_ids:
+        return "", [], []
     mode = mode or SEARCH_MODE
     d = mask_query_detail(query)
     masked_q, q_tokens, regions = d["masked"], d["tokens"], d["regions"]
@@ -100,24 +106,24 @@ def search(query, k=10, conn=None, mode=None):
     conn = conn or db.rag_conn()
     try:
         with conn.cursor() as cur:
-            semantic = _fetch(cur, "", (), vec, max(k * 3, POOL))
-            reghit = (_fetch(cur, "WHERE tokens && %s::text[]", (regions,), vec, k * 3)
+            semantic = _fetch(cur, "", (), vec, max(k * 3, POOL), allowed_doc_ids)
+            reghit = (_fetch(cur, "WHERE tokens && %s::text[]", (regions,), vec, k * 3, allowed_doc_ids)
                       if regions and mode in ("v2", "v3") else [])
             if mode == "v1" or not (q_tokens or reghit):
                 docs = _merge([semantic], k)
             elif not q_tokens:                           # 지역만 있는 질의
                 docs = _merge([reghit, semantic], k)
             elif mode == "v2":
-                anyhit = _fetch(cur, "WHERE tokens && %s::text[]", (q_tokens,), vec, k * 3)
+                anyhit = _fetch(cur, "WHERE tokens && %s::text[]", (q_tokens,), vec, k * 3, allowed_doc_ids)
                 docs = _merge([anyhit, reghit, semantic], k)
             elif mode == "v3":
-                both = (_fetch(cur, "WHERE tokens @> %s::text[]", (q_tokens + regions,), vec, k * 3)
+                both = (_fetch(cur, "WHERE tokens @> %s::text[]", (q_tokens + regions,), vec, k * 3, allowed_doc_ids)
                         if regions else [])              # 예: '윤선영 고객 서울 구로구' → 그 지역의 윤선영 먼저
-                allhit = _fetch(cur, "WHERE tokens @> %s::text[]", (q_tokens,), vec, k * 3)
-                anyhit = _fetch(cur, "WHERE tokens && %s::text[]", (q_tokens,), vec, k * 3)
+                allhit = _fetch(cur, "WHERE tokens @> %s::text[]", (q_tokens,), vec, k * 3, allowed_doc_ids)
+                anyhit = _fetch(cur, "WHERE tokens && %s::text[]", (q_tokens,), vec, k * 3, allowed_doc_ids)
                 docs = _merge([both, allhit, anyhit, reghit, semantic], k)
             elif mode == "v4":
-                anyhit = _fetch(cur, "WHERE tokens && %s::text[]", (q_tokens,), vec, POOL)
+                anyhit = _fetch(cur, "WHERE tokens && %s::text[]", (q_tokens,), vec, POOL, allowed_doc_ids)
                 pool = {}
                 for r in semantic + anyhit:              # 후보 = 의미 상위 + 토큰 일치 청크
                     pool.setdefault(r["chunk_id"], r)
