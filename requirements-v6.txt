@@ -1,0 +1,8 @@
+# V6 통합 탐지 (PII_V6=inproc) 에 필요한 패키지
+# 기준: AegisRAG main 644ab9d (2026-11-17), 우리 가상환경에서 블라인드 171/171 동일 확인 (2026-11-19)
+# 설치 순서:
+#   pip install -r requirements-v6.txt
+#   pip install --no-deps "git+https://github.com/kohjunseo1/AegisRAG.git@644ab9d56cd24d5386c739712488299448940d26#subdirectory=step1_pii_detector"
+# pii_detector 는 반드시 --no-deps 로 설치 (안 그러면 transformers 가 4.x 로 내려감)
+onnx==1.23.2
+onnxruntime==1.32.0
