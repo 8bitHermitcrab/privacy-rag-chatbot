@@ -303,6 +303,52 @@ class BusinessTest(unittest.TestCase):
         with self.assertRaises(HTTPException):
             b.clean_values('roles',{'search_scope':'TEAM'})
 
+    def test_19_invite_with_employee_number_only(self):
+        from pydantic import ValidationError
+        emp = 'inv-' + self.suffix
+        # 1) 처음 보는 사번 → 확인 전 직원 + STAFF 계정, 임시 비밀번호는 응답에만
+        result = json.loads(b.invite_member(b.InviteMember(employee_id=emp), self.request()).body)
+        self.assertEqual(result['login_id'], emp)
+        self.assertTrue(result['employee_created'])
+        employee = self.conn.execute('SELECT * FROM auth.employee_info WHERE employee_id=%s', (emp,)).fetchone()
+        self.assertEqual(employee['verification_status'], 'PENDING')
+        self.assertIsNone(employee['team_id'])
+        user = self.conn.execute('SELECT * FROM auth.user_info WHERE login_id=%s', (emp,)).fetchone()
+        self.assertEqual((user['employee_id'], user['role_code'], user['status']), (emp, 'STAFF', 'ACTIVE'))
+        self.assertTrue(user['must_change_password'])
+        self.assertTrue(b.password_matches(result['temporary_password'], user['password_hash']))
+        logs = self.conn.execute('''SELECT action,before_value,after_value FROM auth.permission_change_log
+            WHERE target_user_id=%s OR after_value->>'key'=%s''', (user['user_id'], emp)).fetchall()
+        self.assertEqual({l['action'] for l in logs}, {'USER_CREATED', 'EMPLOYEES_SAVED'})
+        self.assertNotIn(result['temporary_password'], json.dumps(logs, default=str))
+        # 2) 같은 사번 다시 초대 → 거절, 계정은 하나
+        with self.assertRaises(HTTPException) as error:
+            b.invite_member(b.InviteMember(employee_id=emp), self.request())
+        self.assertEqual(error.exception.status_code, 409)
+        self.assertEqual(self.conn.execute('SELECT count(*) AS n FROM auth.user_info WHERE employee_id=%s', (emp,)).fetchone()['n'], 1)
+        # 3) 이미 등록된 직원 → 직원 정보는 그대로 두고 계정만 발급
+        team = 'inv-team-' + self.suffix
+        known = 'inv-known-' + self.suffix
+        b.save(b.Edit(kind='teams', key=team, values={'team_name': team}, reason='초대 팀 등록'), self.request())
+        b.save(b.Edit(kind='employees', key=known, values={'team_id': team, 'position_code': '사원', 'verification_status': 'CONFIRMED'}, reason='초대 직원 확정'), self.request())
+        result = json.loads(b.invite_member(b.InviteMember(employee_id=known), self.request()).body)
+        self.assertFalse(result['employee_created'])
+        self.assertEqual(result['employee_status'], 'CONFIRMED')
+        self.assertEqual(self.conn.execute('SELECT team_id FROM auth.employee_info WHERE employee_id=%s', (known,)).fetchone()['team_id'], team)
+        # 4) 사번 형식이 아니면 거절 (공백·한글·빈 값)
+        for bad in ('', 'E 001', '사번001'):
+            with self.assertRaises(ValidationError):
+                b.InviteMember(employee_id=bad)
+        # 5) 권한 확인: 확인 전 직원 계정은 검색 정책이 없어 NONE
+        invited = self.conn.execute('SELECT user_id FROM auth.user_info WHERE login_id=%s', (emp,)).fetchone()['user_id']
+        self.conn.execute('UPDATE auth.user_info SET must_change_password=false WHERE user_id=%s', (invited,))
+        me, _ = b.current(self.request(invited, method='GET'), self.conn)
+        self.assertEqual(me['search_scope'], 'NONE')
+        # 6) 관리 권한 없는 계정은 초대할 수 없음
+        with self.assertRaises(HTTPException) as error:
+            b.invite_member(b.InviteMember(employee_id='inv-x-' + self.suffix), self.request(invited))
+        self.assertEqual(error.exception.status_code, 403)
+
 
 
 if __name__ == '__main__':

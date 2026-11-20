@@ -90,9 +90,25 @@ act=async function(kind,id){
     if(!r)return;await liveSave('users',m.id,{status:kind==='suspend'?'LOCKED':'ACTIVE'},r.reason,m.db.updated_at);closeDetail();toast('DB에 저장했습니다.');
   }catch(e){toast(e.message)}
 };
-invite=function(){unlinked('현재 화면은 초대·가입 승인 방식이지만 DB는 관리자가 사번에 계정을 발급하는 방식입니다. 발급 흐름을 맞춘 뒤 연결합니다.')};
+// 회원 초대: 관리자가 사번만 입력 → 아이디=사번, 일반 직원(STAFF) 계정 발급. 임시 비밀번호는 한 번만 보여 주고 화면에서 지웁니다.
+invite=async function(){
+  const r=await ask({title:'회원 초대',yes:'초대하기',
+    text:'초대할 직원의 <b>사번</b>만 입력하세요. 아이디는 사번으로, 역할은 일반 직원(STAFF)으로 계정을 발급합니다.<br>직원 정보가 없으면 \'확인 전\' 직원으로 함께 등록되며, 팀 관리에서 팀·직책을 확정하기 전에는 검색할 수 없습니다.',
+    fields:'<label for="fEmpNo">사번</label><input id="fEmpNo" name="employee_id" maxlength="100" autocomplete="off" spellcheck="false" placeholder="예: E2026001">',
+    check:v=>!v.employee_id?'사번을 입력하세요.':!/^[A-Za-z0-9_.-]+$/.test(v.employee_id)?'사번은 영문·숫자와 _ . - 만 쓸 수 있어요.'
+      :MEMBERS.some(m=>m.employee_id===v.employee_id||m.login===v.employee_id)?'이미 계정이 있는 사번입니다.':''});
+  if(!r)return;
+  if(LIVE_BUSY)return toast('저장 중입니다. 잠시 기다려 주세요.');
+  LIVE_BUSY=true;let d;
+  try{d=await liveApi('/api/admin/invite',{employee_id:r.employee_id})}catch(e){LIVE_BUSY=false;return toast(e.message)}
+  try{await liveRefresh()}catch(e){toast(e.message)}finally{LIVE_BUSY=false}
+  await ask({title:'초대 완료 · 임시 비밀번호',yes:'전달했어요',cancel:false,
+    text:`아이디 <b>${esc(d.login_id)}</b> 계정을 발급했어요.${d.employee_created?' 직원 정보도 \'확인 전\'으로 함께 등록했어요.':''}<br>아래 임시 비밀번호는 <b>지금 한 번만</b> 보여요. 직원에게 안전하게 전달해 주세요. 첫 로그인 때 비밀번호를 바꿔야 해요.`,
+    fields:`<label for="fTemp">임시 비밀번호</label><input id="fTemp" readonly value="${esc(d.temporary_password)}" onfocus="this.select()">`});
+  $('dlgFields').innerHTML='';d=null;
+};
 const originalBindMembers=bindMembers;
-bindMembers=function(){originalBindMembers();$('mRefresh').onclick=()=>liveRefresh().then(()=>toast('DB 목록을 새로 불러왔습니다.')).catch(e=>toast(e.message));$('mInvite').title='계정 발급 흐름 협의 후 연결';const tiles=$('mTiles').children;for(const i of [2,3]){tiles[i].querySelector('.n').textContent='미연결';tiles[i].querySelector('.d').textContent='가입 승인·인사 대조 흐름 협의 필요'}const notice=$('mListView').querySelector('.notice span');if(notice)notice.textContent='현재는 DB의 계정 상태와 직원 확인 상태를 각각 조회합니다. 가입 승인·인사 시스템 대조는 연결 보류입니다.'};
+bindMembers=function(){originalBindMembers();$('mRefresh').onclick=()=>liveRefresh().then(()=>toast('DB 목록을 새로 불러왔습니다.')).catch(e=>toast(e.message));$('mInvite').title='사번으로 일반 직원 계정 발급';const tiles=$('mTiles').children;for(const i of [2,3]){tiles[i].querySelector('.n').textContent='미연결';tiles[i].querySelector('.d').textContent='가입 승인·인사 대조 흐름 협의 필요'}const notice=$('mListView').querySelector('.notice span');if(notice)notice.textContent='현재는 DB의 계정 상태와 직원 확인 상태를 각각 조회합니다. 가입 승인·인사 시스템 대조는 연결 보류입니다.'};
 const originalDrawMembers=drawMembers;
 drawMembers=function(){originalDrawMembers();const tiles=$('mTiles').children;for(const i of [2,3]){tiles[i].querySelector('.n').textContent='미연결';tiles[i].querySelector('.d').textContent='가입 승인·인사 대조 흐름 협의 필요'}for(const key of ['PENDING','IDENTITY_PENDING']){const tab=$('mTabs').querySelector(`[data-tab="${key}"]`);if(tab){tab.disabled=true;tab.title='DB 처리 기준 협의 후 연결';tab.querySelector('.c').textContent='—'}}const options=$('mIdentity').options;for(const o of options){if(o.value==='HR_VERIFIED')o.textContent='직원 확정';if(o.value==='DOC_CONFIRMED'){o.disabled=true;o.textContent='문서 대조 (미연결)'}}};
 const originalDrawRoles=drawRoles;

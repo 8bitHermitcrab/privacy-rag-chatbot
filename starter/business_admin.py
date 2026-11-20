@@ -318,6 +318,42 @@ def create_user(body: CreateUser, request: Request):
         raise HTTPException(400, '아이디·직원 연결·역할을 확인하세요. 직원당 계정은 하나입니다.') from None
 
 
+class InviteMember(BaseModel):
+    employee_id: str = Field(min_length=1, max_length=100, pattern=r'^[A-Za-z0-9_.-]+$')
+
+
+@router.post('/api/admin/invite')
+def invite_member(body: InviteMember, request: Request):
+    """회원 초대: 관리자는 사번만 입력합니다. 아이디=사번, 역할=STAFF, 임시 비밀번호는 응답으로 한 번만 돌려줍니다.
+    직원 정보가 없으면 '확인 전(PENDING)' 직원으로 함께 등록합니다. 팀·직책을 확정하기 전에는 검색 정책이 없어 검색할 수 없습니다."""
+    employee_id = body.employee_id
+    reason = '관리자 회원 초대 (사번 입력)'
+    temporary = secrets.token_urlsafe(18)
+    try:
+        with connection() as conn:
+            conn.execute('SELECT pg_advisory_xact_lock(%s)', (LOCK_ID,))
+            actor, _ = current(request, conn, manager=True)
+            if conn.execute('SELECT 1 FROM auth.user_info WHERE employee_id=%s OR login_id=%s', (employee_id, employee_id)).fetchone():
+                raise HTTPException(409, '이미 계정이 있는 사번입니다.')
+            employee = conn.execute('SELECT verification_status FROM auth.employee_info WHERE employee_id=%s', (employee_id,)).fetchone()
+            if not employee:
+                conn.execute('INSERT INTO auth.employee_info(employee_id) VALUES (%s)', (employee_id,))
+                log(conn, actor['user_id'], 'EMPLOYEES_SAVED', reason, None,
+                    {'entity': 'employees', 'key': employee_id, 'values': {'verification_status': 'PENDING'}})
+            user = conn.execute('''INSERT INTO auth.user_info(login_id,password_hash,employee_id,role_code,created_by,updated_by)
+                VALUES (%s,%s,%s,'STAFF',%s,%s) RETURNING user_id''',
+                (employee_id, password_hash(temporary), employee_id, actor['user_id'], actor['user_id'])).fetchone()
+            # 임시 비밀번호는 이력에 남기지 않습니다.
+            log(conn, actor['user_id'], 'USER_CREATED', reason,
+                after={'login_id': employee_id, 'role_code': 'STAFF', 'invited': True}, target=user['user_id'])
+        return JSONResponse({'ok': True, 'login_id': employee_id, 'temporary_password': temporary,
+                             'employee_created': not employee,
+                             'employee_status': employee['verification_status'] if employee else 'PENDING'},
+                            headers={'Cache-Control': 'no-store'})
+    except psycopg.IntegrityError:
+        raise HTTPException(400, '사번을 확인하세요. 직원당 계정은 하나입니다.') from None
+
+
 class ResetPassword(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
