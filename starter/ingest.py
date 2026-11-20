@@ -76,6 +76,12 @@ def main():
     with db.rag_conn() as conn, conn.cursor() as cur:
         if a.reset:
             cur.execute("TRUNCATE rag.chunks")
+        # rag.chunks.doc_id 는 rag.document_info 를 참조(FK)하므로 문서를 먼저 '미확정'으로 등록합니다.
+        # 이미 있는 문서는 건드리지 않아 관리자가 확정한 담당자·팀 정보를 덮어쓰지 않습니다.
+        cur.executemany(
+            """INSERT INTO rag.document_info (document_id, document_type, metadata_status)
+               VALUES (%s, %s, 'PENDING') ON CONFLICT (document_id) DO NOTHING""",
+            [(d["id"], d.get("doc_type")) for d in docs])
         cur.executemany(
             """INSERT INTO rag.chunks (chunk_id, doc_id, chunk_idx, doc_type, masked_text, tokens, embedding)
                VALUES (%(chunk_id)s, %(doc_id)s, %(chunk_idx)s, %(doc_type)s, %(masked_text)s, %(tokens)s, %(embedding)s)
