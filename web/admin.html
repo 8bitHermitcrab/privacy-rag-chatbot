@@ -559,6 +559,14 @@
     .drop{right:12px}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* 팀 권한 설정 안의 직책별 행. 기존 사이드 패널을 그대로 사용합니다. */
+  .pform .tp-row{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
+  .tp-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .tp-head strong{font-size:15px}.tp-head small{color:var(--ink3);margin-left:auto}
+  .tp-head input[type=text]{width:150px;max-width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit}
+  .tp-row .lbl{font-size:12px;color:var(--ink2);margin-bottom:4px}
+  #teamPolicyForm{flex-shrink:0}#tpRows{min-width:0}
 </style>
 </head>
 <body>
