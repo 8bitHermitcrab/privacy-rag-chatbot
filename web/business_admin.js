@@ -133,9 +133,89 @@ savePerm=function(){unlinked('개인별 검색 범위·복원 예외는 연결�
 const originalDrawTeams=drawTeams;
 drawTeams=function(){originalDrawTeams();$('tSource').textContent=`직원 DB: ${EMPLOYEES.length}명 · 팀 DB: ${Object.keys(TEAMS).length}개. 사번·팀·직책을 조회하며 문서 이름 토큰과 연결하지 않습니다. 문서 근거·인사 대조 항목은 미연결입니다.`;const hero=$('view').querySelector('.hero p');if(hero)hero.textContent='직원 DB의 사번·소속 팀·직책과 계정 연결을 관리합니다. 문서 속 인물사전과는 별도로 관리합니다.';for(const [key,label] of [['OFFICIAL','직원 확정'],['EMPLOYEE_CANDIDATE','확인 전'],['UNRESOLVED','검토 필요']]){const tile=$('tTiles').querySelector(`[data-tile="${key}"] .l`);if(tile)tile.textContent=label}const pending=$('tTiles').querySelector('[data-tile="DOC_CONFIRMED"]');if(pending){pending.disabled=true;pending.querySelector('.n').textContent='미연결'}for(const o of $('tStatus').options){if(EMP_STATUS[o.value])o.textContent=EMP_STATUS[o.value];if(o.value==='DOC_CONFIRMED'){o.disabled=true;o.textContent='문서 대조 (미연결)'}}};
 const originalBindTeams=bindTeams;
-bindTeams=function(){originalBindTeams();$('tSource').textContent=`직원 DB ${EMPLOYEES.length}명 · 문서 인물과 별도로 관리합니다. 인사 시스템 대조는 미연결입니다.`};
+bindTeams=function(){originalBindTeams();$('tSource').textContent=`직원 DB ${EMPLOYEES.length}명 · 문서 인물과 별도로 관리합니다. 인사 시스템 대조는 미연결입니다.`;const add=$('tNewEmp');if(add){add.onclick=()=>openEmployeeForm(null);add.title='사번·소속 팀·직책으로 직원 등록'}};
 const originalDrawEmpCard=drawEmpCard;
-drawEmpCard=function(){originalDrawEmpCard();const card=$('tCard');if(!card)return;for(const li of card.querySelectorAll('li')){const key=li.firstElementChild?.textContent||'';if(/문서|최초|최근|근거/.test(key)&&li.lastElementChild)li.lastElementChild.textContent='미연결'}};
+drawEmpCard=function(){originalDrawEmpCard();const card=$('tCard');if(!card)return;for(const li of card.querySelectorAll('li')){const key=li.firstElementChild?.textContent||'';if(/문서|최초|최근|근거/.test(key)&&li.lastElementChild)li.lastElementChild.textContent='미연결'}
+  // 직원 카드의 [직원 정보 수정] 버튼
+  const e=EMPLOYEES.find(x=>x.id===tState.sel);
+  if(e&&e.db&&!card.querySelector('[data-emp-edit]')){const row=document.createElement('div');row.className='btnRow';row.style.margin='4px 0 12px';
+    row.innerHTML='<button type="button" class="ghostBtn" data-emp-edit>✎ 직원 정보 수정</button>';
+    (card.querySelector('.ctr')||card.querySelector('h3'))?.after(row);row.firstElementChild.onclick=()=>openEmployeeForm(e)}
+};
+
+// ── 직원 등록·수정 (계획서 2단계) ─────────────────────────────────────────
+// 기존 저장 API(/api/admin/save, kind=employees)를 그대로 씁니다. 서버가 확정 조건·동시 수정 충돌·변경 이력을 처리합니다.
+// 직책은 고른 팀의 직책별 정책(team_position_policy)에 등록된 것만 고릅니다. 정책은 직책 글자가 정확히 같아야 적용되기 때문입니다.
+const EMP_DB_STATUS={PENDING:'확인 전',CONFIRMED:'직원 확정',REVIEW_REQUIRED:'검토 필요'};
+const POSITION_ORDER=['사원','주임','대리','과장','차장','부장','팀장'];
+function teamPositions(teamId){
+  if(!teamId)return [];
+  const rank=p=>{const i=POSITION_ORDER.indexOf(p);return i<0?99:i};
+  return [...new Set((LIVE_DB?.policies||[]).filter(p=>p.team_id===teamId).map(p=>p.position_code))].sort((a,b)=>rank(a)-rank(b)||a.localeCompare(b));
+}
+function positionOptions(teamId,current){
+  const list=teamPositions(teamId);
+  let html='<option value="">직책 없음</option>'+list.map(p=>`<option value="${esc(p)}"${p===current?' selected':''}>${esc(p)}</option>`).join('');
+  // 정책에 없는 기존 값은 지우지 않고 그대로 보여 줍니다 (새로 고를 수는 없음).
+  if(current&&!list.includes(current))html+=`<option value="${esc(current)}" selected>${esc(current)} (이 팀 정책에 없음)</option>`;
+  return html;
+}
+function employeeFields(e){
+  const db=e?.db||{},team=db.team_id||'',status=db.verification_status||'PENDING';
+  const teams=(LIVE_DB?.teams||[]).filter(t=>t.is_active||t.team_id===team);
+  return (e?`<p class="fhint" style="margin:0 0 8px">사번 <b>${esc(db.employee_id)}</b>은(는) 바꿀 수 없습니다.</p>`
+      :`<label for="fEmpId">사번</label><input id="fEmpId" name="employee_id" maxlength="100" autocomplete="off" spellcheck="false" placeholder="예: E2026034">`)
+    +`<label for="fEmpTeam">소속 팀</label><select id="fEmpTeam" name="team_id"><option value="">팀 없음</option>${teams.map(t=>`<option value="${esc(t.team_id)}"${t.team_id===team?' selected':''}>${esc(t.team_name)} (${esc(t.team_id)})${t.is_active?'':' · 미사용'}</option>`).join('')}</select>`
+    +`<label for="fEmpPos">직책</label><select id="fEmpPos" name="position_code">${positionOptions(team,db.position_code||'')}</select><p class="fhint" id="fEmpPosHint"></p>`
+    +`<label for="fEmpStatus">확인 상태</label><select id="fEmpStatus" name="verification_status">${Object.entries(EMP_DB_STATUS).map(([k,v])=>`<option value="${k}"${k===status?' selected':''}>${v}</option>`).join('')}</select>`
+    +reasonField(e?'예: 인사팀 확인 후 소속 팀 변경':'예: 신규 입사자 등록');
+}
+// 새 직원은 입력한 값만, 수정은 바뀐 값만 보냅니다.
+function employeeChanges(v,e){
+  const next={team_id:v.team_id||null,position_code:v.position_code||null,verification_status:v.verification_status};
+  if(!e)return Object.fromEntries(Object.entries(next).filter(([,val])=>val!==null));
+  return Object.fromEntries(Object.entries(next).filter(([k,val])=>(e.db[k]??null)!==val));
+}
+function checkEmployee(v,e){
+  if(!e){
+    if(!v.employee_id)return '사번을 입력하세요.';
+    if(!/^[A-Za-z0-9_.-]+$/.test(v.employee_id))return '사번은 영문·숫자와 _ . - 만 쓸 수 있어요.';
+    if(EMPLOYEES.some(x=>x.id===v.employee_id))return '이미 등록된 사번입니다. 목록에서 골라 수정하세요.';
+  }
+  if(v.position_code&&!v.team_id)return '직책을 고르려면 소속 팀을 먼저 고르세요.';
+  const keepOld=e&&v.team_id===(e.db.team_id||'')&&v.position_code===(e.db.position_code||'');
+  if(v.position_code&&!keepOld&&!teamPositions(v.team_id).includes(v.position_code))return '직책은 목록에서 고르세요.';
+  if(v.verification_status==='CONFIRMED'&&(!v.team_id||!v.position_code))return '직원 확정에는 소속 팀과 직책이 모두 필요합니다.';
+  if(e&&!Object.keys(employeeChanges(v,e)).length)return '바뀐 내용이 없습니다.';
+  if((v.reason||'').length<3)return '사유를 3자 이상 적어 주세요. 활동 기록에 남아요.';
+  return '';
+}
+async function openEmployeeForm(e){
+  if(!LIVE_READY)return toast('DB 목록을 불러온 뒤 다시 시도하세요.');
+  if(LIVE_BUSY)return toast('저장 중입니다. 잠시 기다려 주세요.');
+  const pending=ask({title:e?`직원 정보 수정 · ${e.id}`:'직원 추가',yes:e?'수정 저장':'직원 등록',
+    text:e?'소속 팀·직책·확인 상태를 바꿉니다. 바뀐 항목만 저장하고 활동 기록에 남깁니다.'
+      :'새 직원을 등록합니다. 직책은 고른 팀의 <b>직책별 검색 정책</b>에 있는 것만 고를 수 있어요.<br>로그인 계정은 만들지 않습니다. 계정은 회원·권한 관리의 <b>회원 초대</b>에서 사번으로 발급하세요.',
+    fields:employeeFields(e),check:v=>checkEmployee(v,e)});
+  // ask()는 입력 칸을 바로 그려 두므로, 팀을 바꾸면 그 팀의 직책 목록으로 다시 채웁니다.
+  const team=$('fEmpTeam'),pos=$('fEmpPos'),hint=$('fEmpPosHint');
+  const sync=()=>{
+    const prev=pos.value,orig=team.value===(e?.db.team_id||'')?(e?.db.position_code||''):'',list=teamPositions(team.value);
+    pos.innerHTML=positionOptions(team.value,orig);if(list.includes(prev))pos.value=prev;
+    pos.disabled=!team.value;
+    hint.textContent=!team.value?'팀을 고르면 그 팀의 직책 목록이 나옵니다.'
+      :list.length?'직책 목록은 이 팀의 직책별 검색 정책에서 가져옵니다.'
+      :'이 팀은 정책에 등록된 직책이 없어요. 팀 목록 → 권한 설정에서 직책을 먼저 추가하세요.';
+  };
+  team.onchange=sync;sync();
+  const r=await pending;if(!r)return;
+  const id=e?e.id:r.employee_id;
+  try{
+    tState.sel=id;
+    await liveSave('employees',id,employeeChanges(r,e),r.reason,e?e.db.updated_at:null);
+    toast(e?'직원 정보를 DB에 저장했습니다.':`직원 ${id}을(를) DB에 등록했습니다.`);
+  }catch(error){toast(error.message)}
+}
 const originalDrawTeamList=drawTeamList;
 drawTeamList=function(){originalDrawTeamList();for(const tr of $('tTeamBody').querySelectorAll('tr')){const id=tr.children[1]?.textContent.trim(),team=LIVE_DB.teams.find(t=>t.team_id===id);if(tr.children[5])tr.children[5].textContent=team?ymd(new Date(team.created_at)):'—'}};
 policyChips=function(p){const positions=p.positions||[];return `<span class="pchip scope">직책 정책 ${positions.length}개</span><span class="pchip">금융 미연결</span><span class="pchip">복원 미연결</span>`};
