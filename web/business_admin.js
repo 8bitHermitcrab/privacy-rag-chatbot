@@ -18,6 +18,45 @@ EMP_STATUS.EMPLOYEE_CANDIDATE='확인 전';EMP_DESC.EMPLOYEE_CANDIDATE='DB의 �
 EMP_STATUS.UNRESOLVED='검토 필요';EMP_DESC.UNRESOLVED='DB의 직원 정보가 검토 필요 상태';
 AUDIT_TYPE.DB_EVENT='계정·운영 이력';AUDIT_ICON.DB_EVENT='•';AUDIT_ORDER.push('DB_EVENT');
 
+// ── 활동 기록을 읽기 쉬운 문장으로 ─────────────────────────────────────────
+// DB에는 {"entity":"team_position_policy","values":{"search_scope":"OWN",...}} 형태로 저장되어 있습니다.
+// 화면에는 "검색 범위 본인 담당 문서 → 소속 팀 문서"처럼 바뀐 항목만 보여 줍니다. DB 기록 자체는 바꾸지 않습니다.
+const LOG_FIELD={search_scope:'검색 범위',can_restore:'실명 복원',team_id:'소속 팀',position_code:'직책',verification_status:'확인 상태',
+  team_name:'팀 이름',is_active:'사용 여부',role_code:'역할',status:'계정 상태',employee_id:'직원(사번)',owner_employee_id:'담당 직원',
+  metadata_status:'문서 상태',login_id:'아이디',invited:'발급 방식'};
+const LOG_VALUE={
+  search_scope:{OWN:'본인 담당 문서',TEAM:'소속 팀 문서',NONE:'검색 불가'},
+  can_restore:{true:'허용',false:'불가'},is_active:{true:'사용',false:'미사용'},invited:{true:'회원 초대',false:'직접 발급'},
+  verification_status:{PENDING:'확인 전',CONFIRMED:'직원 확정',REVIEW_REQUIRED:'검토 필요'},
+  metadata_status:{PENDING:'미확정',CONFIRMED:'확정',REVIEW_REQUIRED:'검토 필요'},
+  status:{ACTIVE:'사용',LOCKED:'정지',DORMANT:'휴면',RETIRED:'퇴사'},
+  role_code:{STAFF:'일반 직원',TEAM_LEAD:'팀장',ADMIN:'관리자'}};
+function logTeam(id,d){const t=(d?.teams||[]).find(x=>x.team_id===id);return t?`${t.team_name}(${id})`:id}
+function logValue(key,value,d){
+  if(value===null||value===undefined||value==='')return '없음';
+  if(key==='team_id')return logTeam(value,d);
+  return LOG_VALUE[key]?.[String(value)]??String(value);
+}
+const LOG_ORDER=Object.keys(LOG_FIELD);   // 항목은 LOG_FIELD에 적은 순서로 보여 줌 (DB는 알파벳순으로 저장)
+function logFields(values,keys,d,withLabel=true){return [...keys].sort((x,y)=>(LOG_ORDER.indexOf(x)+1||99)-(LOG_ORDER.indexOf(y)+1||99)).map(k=>(withLabel?LOG_FIELD[k]||k:'')+(withLabel?' ':'')+logValue(k,values?.[k],d)).join(' · ')}
+function describeLog(l,d){
+  const b=l.before_value,a=l.after_value,src=a||b||{};
+  // 대상: 정책은 "팀 · 직책", 직원·문서는 키, 팀은 팀 이름
+  const target=src.entity==='team_position_policy'?`${logTeam(src.team_id,d)} · ${src.position_code}`
+    :src.entity==='teams'?logTeam(src.key,d):src.entity==='employees'?`직원 ${src.key}`
+    :src.entity==='documents'?`문서 ${src.key}`:src.key||src.login_id||src.employee_id||'';
+  // {"entity":..,"values":{..}} 형태면 values만, 아니면(계정 발급 등) 객체 그대로 사용
+  const pick=v=>v&&typeof v==='object'?(v.entity?v.values:Object.fromEntries(Object.entries(v).filter(([k])=>!['entity','key'].includes(k)))):null;
+  const bv=pick(b),av=pick(a);
+  if(!bv&&!av)return {target,before:'',after:''};
+  if(!bv)return {target,before:'',after:'새로 등록: '+logFields(av,Object.keys(av),d)};
+  if(!av)return {target,before:(l.action==='TEST_DATA_DELETED'?'삭제: ':'')+logFields(bv,Object.keys(bv),d),after:''};
+  const keys=[...new Set([...Object.keys(bv),...Object.keys(av)])].filter(k=>JSON.stringify(bv[k]??null)!==JSON.stringify(av[k]??null));
+  if(!keys.length)return {target,before:'',after:'변경 없음: '+logFields(av,Object.keys(av),d)};
+  // 바뀐 항목이 하나면 "검색 범위 본인 담당 문서 → 소속 팀 문서", 여러 개면 양쪽에 항목 이름을 붙임
+  return {target,before:logFields(bv,keys,d),after:logFields(av,keys,d,keys.length>1)};
+}
+
 function applyLiveData(d){
   LIVE_DB=d;
   MEMBERS.length=0;EMPLOYEES.length=0;AUDIT.length=0;PERM_LOG.length=0;
@@ -36,12 +75,13 @@ function applyLiveData(d){
       employee_id:u.employee_id||'',team:e?.team_id||'',position:e?.position_code||'',joined:new Date(u.created_at),lastLogin:u.last_login_at?new Date(u.last_login_at):null,
       scope:p?.search_scope||'NONE',restore:p?.can_restore||false,policyExists:!!p,history:[],db:u});
   }
-  const actionNames={BOOTSTRAP:'최초 업무 관리자 생성',PASSWORD_RECOVERY:'운영자 비밀번호 복구',PASSWORD_RESET:'초기 비밀번호 재발급',PASSWORD_CHANGED:'본인 비밀번호 변경',LOGIN_FAILED:'로그인 인증 실패',USER_CREATED:'계정 발급',USERS_SAVED:'계정 정보 변경',EMPLOYEES_SAVED:'직원 정보 변경',TEAMS_SAVED:'팀 정보 변경',DOCUMENTS_SAVED:'문서 권한 정보 변경',TEAM_POSITION_POLICY_SAVED:'팀·직책 정책 변경'};
+  const actionNames={BOOTSTRAP:'최초 업무 관리자 생성',PASSWORD_RECOVERY:'운영자 비밀번호 복구',PASSWORD_RESET:'초기 비밀번호 재발급',PASSWORD_CHANGED:'본인 비밀번호 변경',LOGIN_FAILED:'로그인 인증 실패',USER_CREATED:'계정 발급',USERS_SAVED:'계정 정보 변경',EMPLOYEES_SAVED:'직원 정보 변경',TEAMS_SAVED:'팀 정보 변경',DOCUMENTS_SAVED:'문서 권한 정보 변경',TEAM_POSITION_POLICY_SAVED:'팀·직책 정책 변경',TEST_DATA_DELETED:'테스트 데이터 삭제'};
   for(const l of d.logs){
-    const target=MEMBERS.find(m=>m.id===l.target_user_id),entity=l.after_value||l.before_value||{};
+    const target=MEMBERS.find(m=>m.id===l.target_user_id);
     const type=l.action==='TEAM_POSITION_POLICY_SAVED'?'TEAM_POLICY':l.action==='TEAMS_SAVED'?'TEAM_CREATE':l.action==='USERS_SAVED'?'PERMISSION':'DB_EVENT';
-    const row={id:l.log_id,at:new Date(l.changed_at),actor:l.actor,type,action:actionNames[l.action]||l.action,target:target?.login||[entity.entity,entity.key||entity.team_id,entity.position_code].filter(Boolean).join(' · ')||l.target_role_code||'—',
-      before:l.before_value?JSON.stringify(l.before_value):'',after:l.after_value?JSON.stringify(l.after_value):'',reason:l.reason,detail:'DB 저장 이력',result:''};
+    const text=describeLog(l,d);   // DB의 변경 전·후 JSON을 사람이 읽는 문장으로 바꿈 (원본은 l.before_value / l.after_value)
+    const row={id:l.log_id,at:new Date(l.changed_at),actor:l.actor,type,action:actionNames[l.action]||l.action,target:target?.login||text.target||l.target_role_code||'—',
+      before:text.before,after:text.after,reason:l.reason,detail:'',result:''};
     AUDIT.push(row);if(target)target.history.push({at:row.at,text:row.action+' · '+row.reason});
     if(['USERS_SAVED','TEAM_POSITION_POLICY_SAVED'].includes(l.action))PERM_LOG.push({at:row.at,login:row.target,summary:row.action,reason:row.reason});
   }
@@ -297,7 +337,7 @@ exportFixes=function(){unlinked('탐지 수정 저장 기능을 연결한 뒤 �
 function liveCsv(rows,name){const text=rows.map(r=>r.map(v=>{let s=String(v??'');if(/^[\s]*[=+@-]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}).join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+text],{type:'text/csv;charset=utf-8'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
 exportPerms=function(){liveCsv([['아이디','역할','팀','직책','검색 범위','복원 설정','계정 DB 상태'],...MEMBERS.map(m=>[m.login,m.role,teamName(m.team),m.position,m.scope,m.restore?'허용(기능 미연결)':'거부',m.db.status])],'회원권한.csv')};
 exportEmployees=function(){liveCsv([['사번','팀','직책','DB 확인 상태','연결 계정'],...EMPLOYEES.map(e=>[e.id,teamName(e.team_id),e.position,e.db.verification_status,linkedMember(e)?.login||''])],'직원목록.csv')};
-exportAudit=function(){if(aState.tab==='restore')return unlinked('실제 복원 이력 수집 기능은 미연결입니다.');liveCsv([['기록번호','일시','작업자','작업','대상','사유'],...filteredAudit().map(r=>[r.id,r.at.toISOString(),r.actor,r.action,r.target,r.reason])],'활동기록.csv')};
+exportAudit=function(){if(aState.tab==='restore')return unlinked('실제 복원 이력 수집 기능은 미연결입니다.');liveCsv([['기록번호','일시','작업자','작업','대상','변경 전','변경 후','사유'],...filteredAudit().map(r=>[r.id,r.at.toISOString(),r.actor,r.action,r.target,r.before,r.after,r.reason])],'활동기록.csv')};
 exportRestore=function(){unlinked('실제 복원 이력 수집 기능은 미연결입니다.')};
 
 async function bootLiveAdmin(){

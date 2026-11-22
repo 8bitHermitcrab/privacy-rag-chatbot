@@ -425,6 +425,8 @@
   .detailRow td{background:var(--head)}
   .dgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 24px;font-size:13.5px;padding:4px 0}
   .dgrid div span{display:block;color:var(--ink3);font-size:12px}
+  .dgrid > div{min-width:0;overflow-wrap:anywhere}   /* 띄어쓰기 없는 긴 값도 칸 안에서 줄바꿈 */
+  .dgrid > .wide{grid-column:1 / -1}                 /* 변경 전·변경 후는 한 줄 전체 사용 */
   .more2{display:block;margin:12px auto 0}
   .readonly{font-size:12.5px;color:var(--ink3);margin:10px 0 0;text-align:center}
 
@@ -1954,7 +1956,7 @@ function drawActivity(){
     if (open) html += `<tr class="detailRow"><td></td><td colspan="5"><div class="dgrid">
       <div><span>기록 번호</span>#${esc(r.id)}</div><div><span>일시</span>${fmtDT(r.at)}</div><div><span>작업</span>${esc(r.action)}</div>
       <div><span>작업자</span>${esc(r.actor)}</div><div><span>대상</span>${esc(r.target)}</div><div><span>사유</span>${esc(r.reason || "—")}</div>
-      <div><span>변경 전</span>${esc(r.before || "—")}</div><div><span>변경 후</span>${esc(r.after || "—")}</div><div><span>내용</span>${esc(r.detail || "—")}</div>
+      <div class="wide"><span>변경 전</span>${esc(r.before || "—")}</div><div class="wide"><span>변경 후</span>${esc(r.after || "—")}</div>${r.detail ? `<div><span>내용</span>${esc(r.detail)}</div>` : ""}
       ${r.purpose ? `<div><span>복원 목적</span>${esc(r.purpose)}</div>` : ""}
     </div></td></tr>`;
   });

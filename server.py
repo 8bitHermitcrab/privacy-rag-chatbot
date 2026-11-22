@@ -95,7 +95,10 @@ def chat(req: Ask, request: Request):            # 일반 def → FastAPI가 스
 
 @app.get('/admin-assets/business_admin.js')
 def business_script():
-    return FileResponse(os.path.join(WEB_DIR, 'business_admin.js'), media_type='application/javascript')
+    # no-cache: 브라우저가 예전 파일을 저장해 두고 계속 쓰지 않도록, 화면을 열 때마다 서버에 다시 확인합니다.
+    # (관리자 화면 수정이 새로고침만으로 바로 반영되게 하기 위함. 파일이 작아 매번 받아도 부담이 적습니다.)
+    return FileResponse(os.path.join(WEB_DIR, 'business_admin.js'), media_type='application/javascript',
+                        headers={'Cache-Control': 'no-cache'})
 
 
 def authenticated_chat_page(request, path):
