@@ -97,6 +97,7 @@ def chat(req: Ask, request: Request):            # 일반 def → FastAPI가 스
         return {"error": "API에 연결하지 못했어요. 네트워크와 .env 설정을 확인해 주세요."}
     return {
         "answer": res["answer"],
+        "recheck": res.get("recheck"),
         "masked_query": res["masked_query"],
         "query_tokens": res["query_tokens"],
         "docs": [{"doc_id": d["doc_id"], "score": round(float(d["score"]), 3), "tokens": d["tokens"],

@@ -18,6 +18,7 @@ import time
 import requests
 
 from . import config
+from .output_guard import check as recheck
 from .search import search
 
 LLM_RETRIES = int(os.getenv("LLM_RETRIES", "5"))
@@ -69,8 +70,9 @@ def answer(query, k=3, allowed_doc_ids=None):
     result = {"masked_query": masked_q, "query_tokens": q_tokens, "docs": docs, "answer": None}
     if not docs or not config.LLM_API_KEY:
         return result
-    result["answer"] = _llm([{"role": "system", "content": SYSTEM},
-                             {"role": "user", "content": f"문서:\n{context}\n\n질문: {masked_q}"}])
+    raw = _llm([{"role": "system", "content": SYSTEM},
+                {"role": "user", "content": f"문서:\n{context}\n\n질문: {masked_q}"}])
+    result["answer"], result["recheck"] = recheck(raw, q_tokens, docs)   # 출력 재검사 (원문 없는 보고만 남김)
     return result
 
 
@@ -84,6 +86,8 @@ def main():
     print(f"질의(가명처리): {res['masked_query']}")
     print("참고 문서:", ", ".join(d["doc_id"] for d in res["docs"]))
     print("\n답변:", res["answer"] or "(LLM_API_KEY 없음 — 검색 결과만 표시)")
+    if res.get("recheck"):
+        print("\n재검사:", {k: v for k, v in res["recheck"].items() if k != "raw_pii"})
 
 
 if __name__ == "__main__":
