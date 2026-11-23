@@ -276,6 +276,12 @@ class BusinessTest(unittest.TestCase):
                 result = client.post(base + '/api/admin/policies',json={'team_id':'http-team-'+self.suffix,'position_code':'사원','search_scope':'OWN','can_restore':False,'reason':'실제 HTTP 정책 저장 검증'},timeout=5)
                 self.assertEqual(result.status_code,200)
                 self.assertTrue(any(p['team_id']=='http-team-'+self.suffix for p in client.get(base+'/api/admin/data',timeout=5).json()['policies']))
+                policy=next(p for p in client.get(base+'/api/admin/data',timeout=5).json()['policies'] if p['team_id']=='http-team-'+self.suffix and p['position_code']=='사원')
+                result=client.post(base+'/api/admin/policies/batch',json={'team_id':'http-team-'+self.suffix,'policies':[{'position_code':'팀장','search_scope':'TEAM'},{'position_code':'과장','search_scope':'TEAM'},{'position_code':'사원','search_scope':'NONE','version':policy['updated_at']}],'reason':'실제 HTTP 직책별 일괄 저장'},timeout=5)
+                self.assertEqual(result.status_code,200)
+                self.assertEqual(result.json()['saved'],3)
+                rows=[p for p in client.get(base+'/api/admin/data',timeout=5).json()['policies'] if p['team_id']=='http-team-'+self.suffix]
+                self.assertEqual({p['position_code']:p['search_scope'] for p in rows},{'팀장':'TEAM','과장':'TEAM','사원':'NONE'})
                 self.assertEqual(client.post(base + '/api/logout', json={}, timeout=5).status_code, 200)
                 self.assertEqual(client.get(base + '/api/me', timeout=5).status_code, 401)
         finally:
@@ -302,6 +308,115 @@ class BusinessTest(unittest.TestCase):
             b.save_policy(b.TeamPositionPolicy(team_id='missing-'+self.suffix,position_code='사원',search_scope='OWN',reason='존재하지 않는 팀 차단'),self.request())
         with self.assertRaises(HTTPException):
             b.clean_values('roles',{'search_scope':'TEAM'})
+
+    def test_19_invite_with_employee_number_only(self):
+        from pydantic import ValidationError
+        emp = 'inv-' + self.suffix
+        # 1) 처음 보는 사번 → 확인 전 직원 + STAFF 계정, 임시 비밀번호는 응답에만
+        result = json.loads(b.invite_member(b.InviteMember(employee_id=emp), self.request()).body)
+        self.assertEqual(result['login_id'], emp)
+        self.assertTrue(result['employee_created'])
+        employee = self.conn.execute('SELECT * FROM auth.employee_info WHERE employee_id=%s', (emp,)).fetchone()
+        self.assertEqual(employee['verification_status'], 'PENDING')
+        self.assertIsNone(employee['team_id'])
+        user = self.conn.execute('SELECT * FROM auth.user_info WHERE login_id=%s', (emp,)).fetchone()
+        self.assertEqual((user['employee_id'], user['role_code'], user['status']), (emp, 'STAFF', 'ACTIVE'))
+        self.assertTrue(user['must_change_password'])
+        self.assertTrue(b.password_matches(result['temporary_password'], user['password_hash']))
+        logs = self.conn.execute('''SELECT action,before_value,after_value FROM auth.permission_change_log
+            WHERE target_user_id=%s OR after_value->>'key'=%s''', (user['user_id'], emp)).fetchall()
+        self.assertEqual({l['action'] for l in logs}, {'USER_CREATED', 'EMPLOYEES_SAVED'})
+        self.assertNotIn(result['temporary_password'], json.dumps(logs, default=str))
+        # 2) 같은 사번 다시 초대 → 거절, 계정은 하나
+        with self.assertRaises(HTTPException) as error:
+            b.invite_member(b.InviteMember(employee_id=emp), self.request())
+        self.assertEqual(error.exception.status_code, 409)
+        self.assertEqual(self.conn.execute('SELECT count(*) AS n FROM auth.user_info WHERE employee_id=%s', (emp,)).fetchone()['n'], 1)
+        # 3) 이미 등록된 직원 → 직원 정보는 그대로 두고 계정만 발급
+        team = 'inv-team-' + self.suffix
+        known = 'inv-known-' + self.suffix
+        b.save(b.Edit(kind='teams', key=team, values={'team_name': team}, reason='초대 팀 등록'), self.request())
+        b.save(b.Edit(kind='employees', key=known, values={'team_id': team, 'position_code': '사원', 'verification_status': 'CONFIRMED'}, reason='초대 직원 확정'), self.request())
+        result = json.loads(b.invite_member(b.InviteMember(employee_id=known), self.request()).body)
+        self.assertFalse(result['employee_created'])
+        self.assertEqual(result['employee_status'], 'CONFIRMED')
+        self.assertEqual(self.conn.execute('SELECT team_id FROM auth.employee_info WHERE employee_id=%s', (known,)).fetchone()['team_id'], team)
+        # 4) 사번 형식이 아니면 거절 (공백·한글·빈 값)
+        for bad in ('', 'E 001', '사번001'):
+            with self.assertRaises(ValidationError):
+                b.InviteMember(employee_id=bad)
+        # 5) 권한 확인: 확인 전 직원 계정은 검색 정책이 없어 NONE
+        invited = self.conn.execute('SELECT user_id FROM auth.user_info WHERE login_id=%s', (emp,)).fetchone()['user_id']
+        self.conn.execute('UPDATE auth.user_info SET must_change_password=false WHERE user_id=%s', (invited,))
+        me, _ = b.current(self.request(invited, method='GET'), self.conn)
+        self.assertEqual(me['search_scope'], 'NONE')
+        # 6) 관리 권한 없는 계정은 초대할 수 없음
+        with self.assertRaises(HTTPException) as error:
+            b.invite_member(b.InviteMember(employee_id='inv-x-' + self.suffix), self.request(invited))
+        self.assertEqual(error.exception.status_code, 403)
+
+
+    def test_19_batch_atomicity_and_conflict(self):
+        team='batch-policy-'+self.suffix
+        self.conn.execute('INSERT INTO auth.team_info(team_id,team_name) VALUES (%s,%s)',(team,team))
+        result=b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='팀장',search_scope='TEAM'),b.TeamPolicyRow(position_code='과장',search_scope='TEAM'),b.TeamPolicyRow(position_code='사원',search_scope='OWN')],reason='직책별 일괄 저장 검증'),self.request())
+        self.assertEqual(result['saved'],3)
+        rows=self.conn.execute('SELECT * FROM auth.team_position_policy WHERE team_id=%s',(team,)).fetchall()
+        self.assertEqual({r['position_code']:r['search_scope'] for r in rows},{'팀장':'TEAM','과장':'TEAM','사원':'OWN'})
+        logs=self.conn.execute("SELECT count(*) AS n FROM auth.permission_change_log WHERE after_value->>'team_id'=%s",(team,)).fetchone()['n']
+        self.assertEqual(logs,3)
+        with self.assertRaises(HTTPException) as error:
+            b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='대리',search_scope='OWN'),b.TeamPolicyRow(position_code='사원',search_scope='TEAM',version='오래된 버전')],reason='부분 저장 방지 검증'),self.request())
+        self.assertEqual(error.exception.status_code,409)
+        self.assertIsNone(self.conn.execute("SELECT 1 FROM auth.team_position_policy WHERE team_id=%s AND position_code='대리'",(team,)).fetchone())
+        self.assertEqual(self.conn.execute("SELECT count(*) AS n FROM auth.permission_change_log WHERE after_value->>'team_id'=%s",(team,)).fetchone()['n'],3)
+        with self.assertRaises(HTTPException):
+            b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='대리',search_scope='OWN'),b.TeamPolicyRow(position_code='대리',search_scope='TEAM')],reason='중복 직책 차단 검증'),self.request())
+        with self.assertRaises(HTTPException):
+            b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='대리',search_scope='ALL')],reason='허용되지 않은 범위 검증'),self.request())
+
+    def test_20_batch_preserves_restore_and_none_disables_it(self):
+        team='batch-restore-'+self.suffix
+        self.conn.execute('INSERT INTO auth.team_info(team_id,team_name) VALUES (%s,%s)',(team,team))
+        b.save_policy(b.TeamPositionPolicy(team_id=team,position_code='팀장',search_scope='TEAM',can_restore=True,reason='기존 복원 설정 준비'),self.request())
+        def row():return self.conn.execute("SELECT * FROM auth.team_position_policy WHERE team_id=%s AND position_code='팀장'",(team,)).fetchone()
+        b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='팀장',search_scope='OWN',version=row()['updated_at'].isoformat())],reason='별도 설정 보존 검증'),self.request())
+        self.assertTrue(row()['can_restore'])
+        b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='팀장',search_scope='NONE',version=row()['updated_at'].isoformat())],reason='검색 차단 시 복원 차단'),self.request())
+        self.assertFalse(row()['can_restore'])
+        result=b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='팀장',search_scope='NONE',version=row()['updated_at'].isoformat())],reason='동일 값 재저장 검증'),self.request())
+        self.assertEqual(result['saved'],0)
+
+    def test_21_batch_requires_manager(self):
+        emp='batch-staff-'+self.suffix
+        self.conn.execute('INSERT INTO auth.employee_info(employee_id) VALUES (%s)',(emp,))
+        uid=self.conn.execute("INSERT INTO auth.user_info(login_id,password_hash,employee_id,role_code,must_change_password) VALUES (%s,%s,%s,'STAFF',false) RETURNING user_id",(emp,b.password_hash('일반사용자검증비밀번호_12345'),emp)).fetchone()['user_id']
+        body=b.TeamPolicyBatch(team_id='not-a-real-team',policies=[b.TeamPolicyRow(position_code='사원',search_scope='TEAM')],reason='일반 사용자 접근 차단')
+        with self.assertRaises(HTTPException) as error:b.save_team_policies(body,self.request(uid))
+        self.assertEqual(error.exception.status_code,403)
+
+    def test_22_batch_policy_change_affects_next_search(self):
+        from starter import db
+        team='batch-scope-'+self.suffix;emp='batch-scope-emp-'+self.suffix
+        self.conn.execute('INSERT INTO auth.team_info(team_id,team_name) VALUES (%s,%s)',(team,team))
+        self.conn.execute("INSERT INTO auth.employee_info(employee_id,team_id,position_code,verification_status) VALUES (%s,%s,'사원','CONFIRMED')",(emp,team))
+        uid=self.conn.execute("INSERT INTO auth.user_info(login_id,password_hash,employee_id,role_code,must_change_password) VALUES (%s,%s,%s,'STAFF',false) RETURNING user_id",(emp,b.password_hash('검색범위검증비밀번호_12345'),emp)).fetchone()['user_id']
+        req=self.request(uid)
+        self.assertEqual(b.allowed_documents(req),[])
+        def save(scope):
+            old=self.conn.execute("SELECT updated_at FROM auth.team_position_policy WHERE team_id=%s AND position_code='사원'",(team,)).fetchone()
+            b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='사원',search_scope=scope,version=old['updated_at'].isoformat() if old else None)],reason='저장 후 실제 검색 범위 검증'),self.request())
+        rag=Mock();rag.__enter__=Mock(return_value=rag);rag.__exit__=Mock(return_value=False)
+        rag.execute.return_value.fetchall.return_value=[('ALLOWED',)]
+        save('OWN')
+        with patch.object(db,'rag_conn',return_value=rag):self.assertEqual(b.allowed_documents(req),['ALLOWED'])
+        self.assertIn('owner_employee_id=%s',rag.execute.call_args.args[0]);self.assertEqual(rag.execute.call_args.args[1],(emp,))
+        save('TEAM')
+        with patch.object(db,'rag_conn',return_value=rag):self.assertEqual(b.allowed_documents(req),['ALLOWED'])
+        self.assertIn('team_id=%s',rag.execute.call_args.args[0]);self.assertEqual(rag.execute.call_args.args[1],(team,))
+        save('NONE')
+        with patch.object(db,'rag_conn') as connect:
+            self.assertEqual(b.allowed_documents(req),[]);connect.assert_not_called()
 
 
 

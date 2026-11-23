@@ -318,6 +318,42 @@ def create_user(body: CreateUser, request: Request):
         raise HTTPException(400, '아이디·직원 연결·역할을 확인하세요. 직원당 계정은 하나입니다.') from None
 
 
+class InviteMember(BaseModel):
+    employee_id: str = Field(min_length=1, max_length=100, pattern=r'^[A-Za-z0-9_.-]+$')
+
+
+@router.post('/api/admin/invite')
+def invite_member(body: InviteMember, request: Request):
+    """회원 초대: 관리자는 사번만 입력합니다. 아이디=사번, 역할=STAFF, 임시 비밀번호는 응답으로 한 번만 돌려줍니다.
+    직원 정보가 없으면 '확인 전(PENDING)' 직원으로 함께 등록합니다. 팀·직책을 확정하기 전에는 검색 정책이 없어 검색할 수 없습니다."""
+    employee_id = body.employee_id
+    reason = '관리자 회원 초대 (사번 입력)'
+    temporary = secrets.token_urlsafe(18)
+    try:
+        with connection() as conn:
+            conn.execute('SELECT pg_advisory_xact_lock(%s)', (LOCK_ID,))
+            actor, _ = current(request, conn, manager=True)
+            if conn.execute('SELECT 1 FROM auth.user_info WHERE employee_id=%s OR login_id=%s', (employee_id, employee_id)).fetchone():
+                raise HTTPException(409, '이미 계정이 있는 사번입니다.')
+            employee = conn.execute('SELECT verification_status FROM auth.employee_info WHERE employee_id=%s', (employee_id,)).fetchone()
+            if not employee:
+                conn.execute('INSERT INTO auth.employee_info(employee_id) VALUES (%s)', (employee_id,))
+                log(conn, actor['user_id'], 'EMPLOYEES_SAVED', reason, None,
+                    {'entity': 'employees', 'key': employee_id, 'values': {'verification_status': 'PENDING'}})
+            user = conn.execute('''INSERT INTO auth.user_info(login_id,password_hash,employee_id,role_code,created_by,updated_by)
+                VALUES (%s,%s,%s,'STAFF',%s,%s) RETURNING user_id''',
+                (employee_id, password_hash(temporary), employee_id, actor['user_id'], actor['user_id'])).fetchone()
+            # 임시 비밀번호는 이력에 남기지 않습니다.
+            log(conn, actor['user_id'], 'USER_CREATED', reason,
+                after={'login_id': employee_id, 'role_code': 'STAFF', 'invited': True}, target=user['user_id'])
+        return JSONResponse({'ok': True, 'login_id': employee_id, 'temporary_password': temporary,
+                             'employee_created': not employee,
+                             'employee_status': employee['verification_status'] if employee else 'PENDING'},
+                            headers={'Cache-Control': 'no-store'})
+    except psycopg.IntegrityError:
+        raise HTTPException(400, '사번을 확인하세요. 직원당 계정은 하나입니다.') from None
+
+
 class ResetPassword(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
@@ -380,6 +416,69 @@ def save_policy(body: TeamPositionPolicy, request: Request):
         return {'ok': True}
     except psycopg.IntegrityError:
         raise HTTPException(400, '등록된 팀과 정책 조합을 확인하세요.') from None
+
+
+class TeamPolicyRow(BaseModel):
+    position_code: str = Field(min_length=1, max_length=100)
+    search_scope: str
+    version: str | None = Field(default=None, max_length=100)
+
+
+class TeamPolicyBatch(BaseModel):
+    team_id: str = Field(min_length=1, max_length=100)
+    policies: list[TeamPolicyRow] = Field(min_length=1, max_length=100)
+    reason: str = Field(min_length=3, max_length=500)
+
+
+@router.post('/api/admin/policies/batch')
+def save_team_policies(body: TeamPolicyBatch, request: Request):
+    """팀 안의 직책별 변경을 한 트랜잭션으로 저장하며 기존 복원 설정은 보존합니다."""
+    if body.team_id != body.team_id.strip() or len(body.reason.strip()) < 3:
+        raise HTTPException(400, '팀 코드와 변경 사유를 확인하세요.')
+    positions = [row.position_code for row in body.policies]
+    if len(set(positions)) != len(positions):
+        raise HTTPException(400, '같은 직책을 두 번 등록할 수 없습니다.')
+    for row in body.policies:
+        if not row.position_code.strip() or row.position_code != row.position_code.strip():
+            raise HTTPException(400, '직책을 입력하고 앞뒤 공백을 제거하세요.')
+        if row.search_scope not in ('OWN', 'TEAM', 'NONE'):
+            raise HTTPException(400, '검색 범위는 본인 담당·소속 팀·검색 불가 중 선택하세요.')
+    try:
+        with connection() as conn:
+            conn.execute('SELECT pg_advisory_xact_lock(%s)', (LOCK_ID,))
+            actor, _ = current(request, conn, manager=True)
+            if not conn.execute('SELECT 1 FROM auth.team_info WHERE team_id=%s', (body.team_id,)).fetchone():
+                raise HTTPException(404, '팀을 찾을 수 없습니다. 목록을 새로고침하세요.')
+            records = conn.execute('''SELECT * FROM auth.team_position_policy
+                WHERE team_id=%s AND position_code=ANY(%s::text[]) FOR UPDATE''', (body.team_id, positions)).fetchall()
+            existing = {row['position_code']: row for row in records}
+            # 모든 버전을 먼저 확인합니다. 한 직책이라도 충돌하면 어느 직책도 저장하지 않습니다.
+            for row in body.policies:
+                old = existing.get(row.position_code)
+                if (old and row.version != old['updated_at'].isoformat()) or (not old and row.version):
+                    raise HTTPException(409, row.position_code + ' 정책이 다른 곳에서 변경되었습니다. 창을 닫고 다시 열어 확인하세요.')
+            saved = []
+            for row in body.policies:
+                old = existing.get(row.position_code)
+                can_restore = bool(old and old['can_restore'] and row.search_scope != 'NONE')
+                after = {'search_scope': row.search_scope, 'can_restore': can_restore}
+                before = {k: old[k] for k in after} if old else None
+                if before == after:
+                    continue
+                if old:
+                    conn.execute('''UPDATE auth.team_position_policy SET search_scope=%s,can_restore=%s
+                        WHERE team_id=%s AND position_code=%s''',
+                        (row.search_scope, can_restore, body.team_id, row.position_code))
+                else:
+                    conn.execute('''INSERT INTO auth.team_position_policy(team_id,position_code,search_scope,can_restore)
+                        VALUES (%s,%s,%s,%s)''', (body.team_id, row.position_code, row.search_scope, can_restore))
+                log(conn, actor['user_id'], 'TEAM_POSITION_POLICY_SAVED', body.reason,
+                    {'entity': 'team_position_policy', 'team_id': body.team_id, 'position_code': row.position_code, 'values': before},
+                    {'entity': 'team_position_policy', 'team_id': body.team_id, 'position_code': row.position_code, 'values': after})
+                saved.append(row.position_code)
+        return {'ok': True, 'saved': len(saved), 'positions': saved}
+    except (psycopg.IntegrityError, psycopg.DataError):
+        raise HTTPException(400, '팀과 직책 정책을 확인하세요. 이번 변경은 모두 취소했습니다.') from None
 
 
 def allowed_documents(request):
