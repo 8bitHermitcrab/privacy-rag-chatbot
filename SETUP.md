@@ -5,13 +5,16 @@
 
 명령은 macOS·Linux 기준입니다. Windows는 [Windows에서 설치할 때](#windows에서-설치할-때)를 참고하세요.
 
+> **Python 3.12로 통일합니다.** 탐지기(하이브리드 + V6)와 DB·관리자 테스트를 모두 3.12에서 확인했습니다.
+> 레포의 `.python-version`(pyenv용)과 `install.sh`의 버전 확인이 3.12가 아니면 설치를 멈춥니다.
+
 ---
 
 ## 0. 미리 준비할 것
 
 | 항목 | 받는 곳 | 비고 |
 |---|---|---|
-| Python 3.12, Git, Docker Desktop | 각자 설치 | Docker는 켜 둔 상태로 진행 |
+| **Python 3.12**, Git, Docker Desktop | 각자 설치 | 3.13·3.14 아님. Docker는 켜 둔 상태로 진행 |
 | `models/roberta_small_v1`, `models/koelectra_ft5` | 팀 내부 공유 | 저장소에 없음 (`.gitignore`) |
 | `data/holdout_labeled.jsonl` 등 데이터 | 팀 내부 공유 | 저장소에 없음. 강사 제공 데이터라 외부 공유 금지 |
 | `HMAC_KEY` | 팀 내부 공유 | 팀 전원이 같은 값이어야 토큰이 서로 맞음 |
@@ -32,9 +35,14 @@ cd privacy-rag-chatbot
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
+python --version
 ```
 
-프롬프트 앞에 `(.venv)`가 보이면 됩니다. 이후 명령은 모두 이 상태에서 실행합니다.
+`Python 3.12.x`가 나오고 프롬프트 앞에 `(.venv)`가 보이면 됩니다. 이후 명령은 모두 이 상태에서 실행합니다.
+pyenv를 쓰면 레포 폴더에서 `.python-version`을 읽어 3.12가 자동으로 잡힙니다 (없으면 `pyenv install 3.12`).
+
+> 다른 버전으로 만든 `.venv`가 있으면 폴더를 지우고 다시 만드세요. 이미 만든 가상환경의 Python 버전은 바꿀 수 없습니다.
+> `.venv`와 `.env`는 다른 파일입니다. `.env`는 지우지 마세요.
 
 ## 3. 패키지 설치
 
@@ -42,7 +50,7 @@ source .venv/bin/activate
 sh install.sh
 ```
 
-`install.sh`는 두 가지를 설치합니다.
+`install.sh`는 Python 3.12인지 먼저 확인한 뒤 두 가지를 설치합니다.
 
 1. `requirements.txt` (우리 코드 + `onnx`·`onnxruntime`)
 2. V6 탐지기 패키지 (`AegisRAG` 커밋 `644ab9d`의 `step1_pii_detector`)를 `--no-deps`로
@@ -91,7 +99,7 @@ cp .env.example .env
 
 | 항목 | 값 |
 |---|---|
-| `POSTGRES_PASSWORD`, `RAG_PASSWORD`, `VAULT_PASSWORD` | 각자 정한 값 (내 컴퓨터 DB용) |
+| `POSTGRES_PASSWORD`, `RAG_PASSWORD`, `VAULT_PASSWORD`, `MIGRATION_PASSWORD` | 각자 정한 값 (내 컴퓨터 DB용, **영문·숫자**) |
 | `EMBED_PROVIDER` | `api` |
 | `EMBED_API_KEY`, `LLM_API_KEY` | 팀 공유 키 |
 | `HMAC_KEY` | 팀 공유 값 |
@@ -118,15 +126,34 @@ docker compose ps
 ```
 
 상태가 `healthy`가 되면 다음으로 넘어갑니다.
-처음 켤 때 `init/`의 스크립트가 검색용(`rag`)과 매핑용(`vault`) 스키마·계정을 따로 만듭니다.
+
+## 6-1. DB 구조 준비 (처음 한 번)
+
+```bash
+python -m starter.migrate --prepare
+python -m starter.migrate
+python -m starter.business_admin --prepare
+```
+
+1. DB 전용 계정(`migration_user` 등)과 빠진 필수 구조를 준비하고 버전을 등록합니다.
+2. 미적용 DB 버전 변경을 적용합니다 (현재 `0002`).
+3. 업무 관리자용 계정(`auth_user`)과 첫 관리자 `businessadmin`을 만듭니다.
+   초기 비밀번호는 `~/.local/share/rag-server-admin/business-initial-login.txt`에 있습니다 (Git 밖). 첫 로그인 후 변경하고 파일은 지우세요.
+
+세 명령 모두 기존 청크·토큰·계정 비밀번호를 지우거나 초기화하지 않습니다.
+이미 준비된 DB에서 다시 실행해도 됩니다. 서버를 켤 때도 2번은 자동으로 실행됩니다.
+
+> **DB를 지우지 마세요.** `docker compose down -v`는 업무 계정·권한 데이터까지 모두 삭제합니다.
 
 ## 7. 테스트
 
 ```bash
 python -m pytest tests -q
+python -m unittest starter.test_business_admin server_admin.test_admin -q
 ```
 
-`28 passed`가 나오면 설치가 끝난 것입니다.
+첫 줄은 `28 passed`, 둘째 줄은 `OK`가 나오면 설치가 끝난 것입니다.
+둘째 줄은 6-1단계를 마친 뒤에 실행해야 합니다 (`business-runtime.json` 필요).
 
 ## 8. 문서 적재
 
@@ -138,6 +165,8 @@ python -m starter.ingest --data data/holdout_labeled.jsonl --reset
 - 끝날 때 `탐지 경로:`에 `merge`가 보이면 통합 탐지가 정상 동작한 것입니다.
 - `[v6] 사용할 수 없음(...) → 60초 동안 하이브리드 단독으로 동작`이 보이면 V6 없이 적재된 것입니다. `HF_TOKEN`과 3단계 설치를 확인하세요.
 - 탐지기 한쪽만 잡은 구간은 `outputs/review_queue_holdout_labeled.jsonl`에 **위치만** 기록됩니다 (원문 없음).
+- 주의: 지금은 `rag.document_info`에 이미 등록된 문서 ID만 적재할 수 있습니다 (`chunks.doc_id` 외래키).
+  holdout 문서는 6-1단계에서 자동 등록됩니다. 새 데이터셋 적재는 `ingest.py` 수정 후 가능합니다.
 
 ## 9. 챗봇 실행
 
@@ -145,12 +174,13 @@ python -m starter.ingest --data data/holdout_labeled.jsonl --reset
 uvicorn server:app --port 8000
 ```
 
-브라우저에서 엽니다.
+브라우저에서 http://127.0.0.1:8000/login 으로 로그인합니다.
 
-- 어흥이 버전: http://127.0.0.1:8000
-- 심플 버전: http://127.0.0.1:8000/simple
+서버를 켤 때 DB 버전 확인 → V6 모델 사전 로딩 순서로 진행되며, 처음 몇 초~몇십 초는 느릴 수 있습니다.
 
-서버를 켤 때 V6 모델을 미리 불러오므로 처음 몇십 초는 느릴 수 있습니다.
+> 웹 챗봇은 로그인한 직원에게 **확정된 담당·팀 문서만** 검색합니다.
+> 직원·팀·직책 정책과 문서 담당자를 등록하기 전에는 "검색 가능한 확정 문서가 없습니다"(403)가 나오는 것이 정상입니다.
+> 권한 없이 탐지·검색만 확인하려면 터미널 명령을 쓰세요.
 
 터미널에서 바로 확인하려면:
 
@@ -181,19 +211,34 @@ python -m starter.chat "윤선영 고객 대출 상담 내역 알려줘"
 | `Connection refused` (DB) | Docker Desktop 실행 후 `docker compose up -d` |
 | `HMAC_KEY 가 비어 있습니다` | `.env`의 `HMAC_KEY` 확인 |
 | `HF_TOKEN is required` / `[v6] 사용할 수 없음` | `.env`에 `HF_TOKEN` 추가, `sh install.sh` 다시 실행 |
-| `EMBED_DIM`을 바꾼 뒤 적재 오류 | `docker compose down -v` → `docker compose up -d` → 8단계부터 |
+| `DB 계정 인증 실패` (migrate) | `.env`의 `POSTGRES_PASSWORD`·`MIGRATION_PASSWORD` 확인. 6-1단계를 `--prepare`부터 실행 |
+| `business-runtime.json` 없음 | 6-1단계 3번(`business_admin --prepare`) 실행 |
+| `Python 3.12가 필요합니다` | `.venv`를 지우고 Python 3.12로 다시 만들기 (2단계) |
+| `EMBED_DIM` 변경 | DB를 지우지 말고 DB 담당자와 재임베딩 계획을 먼저 정하기 |
 | 다른 팀원과 토큰이 다름 | `HMAC_KEY`가 팀 공유 값과 같은지 확인 |
 | API 429 (호출 한도) | 20~30초 뒤 다시 시도. 적재는 `EMBED_SLEEP`(기본 2초)로 조절 |
 
 ## Windows에서 설치할 때
 
-`sh install.sh` 대신 아래 두 줄을 차례로 실행합니다 (PowerShell, 가상환경은 `.venv\Scripts\activate`).
+Python 3.12를 python.org에서 설치한 뒤 가상환경을 만듭니다 (PowerShell).
+
+```
+py -3.12 -m venv .venv
+.venv\Scripts\activate
+python --version
+```
+
+`sh install.sh` 대신 아래 두 줄을 차례로 실행합니다.
 
 ```
 pip install -r requirements.txt
 pip install --no-deps "git+https://github.com/kohjunseo1/AegisRAG.git@644ab9d56cd24d5386c739712488299448940d26#subdirectory=step1_pii_detector"
 ```
 
+Windows에서는 `시스템_시작.cmd`로 DB 준비·관리자 실행을 한 번에 할 수도 있습니다 (README 참고). 이 파일도 `.venv`의 Python을 그대로 씁니다.
+
 ## 커밋하면 안 되는 것
 
 `.env`, `data/`, `models/`, `outputs/`는 `.gitignore`에 들어 있습니다. `git add .` 전에 `git status`로 한 번 확인하세요.
+
+> 데이터는 Git으로 공유하지 않습니다. 브랜치를 받기(pull·merge) 전에 `cp -R data ~/data_backup`으로 백업해 두세요.

@@ -10,7 +10,7 @@ Docker와 DB 준비 → DB 버전 확인 → 서버 관리자 실행 → 브라�
 관리자 화면에서 챗봇 두 개와 분산기를 시작한 뒤 `http://127.0.0.1:8080`으로 사용합니다.
 
 처음 설치할 때는 Docker Desktop, 프로젝트 `.venv`, `requirements.txt`, 실제 값을 입력한 `.env`가 먼저 필요합니다.
-현재 검증 환경은 Windows Python 3.14입니다. `requirements.txt`는 이 환경에서 동작을 확인한 패키지 버전으로 맞췄습니다.
+팀 공통 Python 버전은 3.12입니다 (`.python-version`). 탐지기는 macOS, DB·관리자 기능은 Windows에서 3.12 기준으로 확인합니다. 설치 방법은 SETUP.md를 따르세요.
 `.env.example`의 예시 비밀번호·키는 실제 사용 설정이 아닙니다. 실제 값은 각 PC의 `.env`에만 입력하세요.
 `app.py`의 기존 Streamlit 데모는 선택 기능입니다. 현재 기본 실행은 FastAPI이며 Streamlit 사용 시 별도 설치가 필요합니다.
 Docker Desktop이 꺼져 있으면 자동 실행 후 준비를 기다립니다. 최초 이미지 다운로드는 시간이 걸릴 수 있습니다.
