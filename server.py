@@ -51,6 +51,7 @@ WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 LOGIN = os.path.join(WEB_DIR, "login.html")     # 시작(로그인) 화면
 LION = os.path.join(WEB_DIR, "index.html")      # 어흥이 버전 (기본)
 SIMPLE = os.path.join(WEB_DIR, "simple.html")   # 심플 버전
+CHAT_LOGIN = os.path.join(WEB_DIR, "chat_login.html")  # 챗봇 로그인 화면
 
 
 class Ask(BaseModel):
@@ -66,6 +67,11 @@ def login():
 @app.get("/chat")
 def index(request: Request):
     return authenticated_chat_page(request, LION)
+
+
+@app.get("/chat/login")
+def index(request: Request):
+    return authenticated_chat_page(request, CHAT_LOGIN)
 
 
 @app.get("/simple")
