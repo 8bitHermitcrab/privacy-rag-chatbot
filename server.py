@@ -70,8 +70,9 @@ def index(request: Request):
 
 
 @app.get("/chat/login")
-def index(request: Request):
-    return authenticated_chat_page(request, CHAT_LOGIN)
+def chat_login():
+    """챗봇 로그인 화면 (로그인 없이 열림). 로그인 상태 확인·계정 전환은 페이지가 /api/me 로 처리"""
+    return FileResponse(CHAT_LOGIN, headers={'Cache-Control': 'no-store'})
 
 
 @app.get("/simple")
@@ -122,16 +123,25 @@ def authenticated_chat_page(request, path):
             current(request, conn)
     except HTTPException as error:
         if error.status_code in (401, 403):
-            return RedirectResponse('/login', status_code=303)
+            return RedirectResponse('/chat/login', status_code=303)
         raise
     # 기존 챗봇 두 화면에 같은 인증 헤더를 적용합니다. 질문 원문은 저장하지 않습니다.
     bootstrap = """<script>const originalFetch=window.fetch.bind(window);let businessCsrf=null;
 window.fetch=async function(input,options={}){if(typeof input==='string'&&input==='/api/chat'){
-if(!businessCsrf){const r=await originalFetch('/api/me',{cache:'no-store'});if(!r.ok){location.href='/login';throw Error('로그인이 필요합니다.')}businessCsrf=(await r.json()).csrf}
+if(!businessCsrf){const r=await originalFetch('/api/me',{cache:'no-store'});if(!r.ok){location.href='/chat/login';throw Error('로그인이 필요합니다.')}businessCsrf=(await r.json()).csrf}
 options={...options,headers:{...options.headers,'X-CSRF-Token':businessCsrf}};}
 const response=await originalFetch(input,options);if(typeof input==='string'&&input==='/api/chat'&&!response.ok){let d;try{d=await response.clone().json()}catch{}return new Response(JSON.stringify({error:d?.detail||'요청을 처리하지 못했습니다.'}),{status:200,headers:{'Content-Type':'application/json'}})}return response};</script>"""
     with open(path, encoding='utf-8') as handle:
         html = handle.read()
+    # 챗봇 화면 로그아웃 버튼 (계정 전환용): '참고 문서' 선택 바로 옆에 붙임. 그 줄이 안 보이는 화면(모바일)에서는 오른쪽 위에 고정
+    logout_ui = """<script>document.addEventListener('DOMContentLoaded',async()=>{try{const r=await fetch('/api/me',{cache:'no-store'});if(!r.ok)return;const me=await r.json();
+const b=document.createElement('button');b.type='button';b.textContent='로그아웃 ('+me.login_id+')';
+b.style.cssText='flex:none;padding:5px 12px;border:1px solid #CDB894;border-radius:999px;background:#FFFDF8;color:#4A2E14;font:13px sans-serif;cursor:pointer;white-space:nowrap';
+b.onclick=async()=>{b.disabled=true;try{await fetch('/api/logout',{method:'POST',headers:{'X-CSRF-Token':me.csrf}})}finally{location.replace('/chat/login')}};
+const k=document.getElementById('k'),slot=k&&(k.closest('label')||k);
+if(slot&&slot.offsetParent!==null){b.style.marginLeft='10px';slot.insertAdjacentElement('afterend',b)}
+else{b.style.cssText+=';position:fixed;top:4px;right:8px;z-index:9999;padding:3px 10px;font-size:12px';document.body.appendChild(b)}}catch(e){}});</script>"""
+    html = html.replace('</body>', logout_ui + '</body>', 1) if '</body>' in html else html + logout_ui
     return HTMLResponse(html.replace('<head>', '<head>' + bootstrap, 1), headers={'Cache-Control': 'no-store'})
 
 
@@ -142,7 +152,7 @@ async def business_headers(request, call_next):
         response = await call_next(request)
     except (psycopg.Error, FileNotFoundError):
         response = JSONResponse({'detail': 'DB 또는 업무 계정 설정을 확인하세요.'}, status_code=503)
-    if request.url.path.startswith('/api/') or request.url.path in ('/admin', '/login', '/chat', '/simple'):
+    if request.url.path.startswith('/api/') or request.url.path in ('/admin', '/login', '/chat', '/chat/login', '/simple'):
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'same-origin'
