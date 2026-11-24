@@ -461,8 +461,8 @@ function drawDocumentsPage(){
       <select id="docTeam" aria-label="담당 팀"><option value="">모든 팀</option><option value="NONE">팀 미지정</option>${teams.map(t=>`<option value="${esc(t.team_id)}">${esc(t.team_name)} (${esc(t.team_id)})</option>`).join('')}</select>
       <select id="docType" aria-label="문서 유형"><option value="">모든 문서 유형</option>${types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
       <button type="button" class="ghostBtn" id="docExport">↓ 내보내기</button>
-      <button type="button" class="ghostBtn" id="docImport" title="팀원이 채운 문서분류 엑셀을 CSV로 저장해 올리면 미리 보기 후 반영합니다">↑ 분류 결과 반영 (CSV)</button>
-      <input type="file" id="docImportFile" accept=".csv,text/csv" hidden>
+      <button type="button" class="ghostBtn" id="docImport" title="팀원이 채운 문서분류 엑셀(.xlsx)을 그대로 올리면 미리 보기 후 반영합니다 (CSV도 가능)">↑ 분류 결과 반영 (엑셀)</button>
+      <input type="file" id="docImportFile" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
     </div>
     <div class="actions" style="align-items:center;flex-wrap:wrap">
       <span id="docSelInfo" style="color:var(--ink2);font-size:14px;margin-right:auto"></span>
@@ -480,7 +480,7 @@ function drawDocumentsPage(){
   $('docType').onchange=e=>{docState.type=e.target.value;drawDocRows()};
   $('docExport').onclick=exportDocuments;
   $('docImport').onclick=()=>$('docImportFile').click();
-  $('docImportFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)importDocumentCsv(f)};
+  $('docImportFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)importDocumentFile(f)};
   $('docAll').onchange=e=>{for(const d of filteredDocs())e.target.checked?docState.sel.add(d.document_id):docState.sel.delete(d.document_id);drawDocRows()};
   $('docBulkConfirm').onclick=()=>bulkDocStatus('CONFIRMED');
   $('docBulkReview').onclick=()=>bulkDocStatus('REVIEW_REQUIRED');
@@ -684,8 +684,9 @@ function drawDataChecks(){
 const originalBindSystem=bindSystem;
 bindSystem=function(){originalBindSystem();drawDataChecks()};
 
-// ── 팀원 문서 분류 결과(엑셀 → CSV) 반영 ────────────────────────────────────
-// 팀원 작업 2의 '문서분류_날짜.xlsx'를 엑셀에서 'CSV UTF-8'로 저장해 올립니다. (일반 CSV(한글 깨짐 위험)도 자동으로 읽어 봄)
+// ── 팀원 문서 분류 결과(엑셀) 반영 ──────────────────────────────────────────
+// 팀원 작업 2의 '문서분류_날짜.xlsx'를 그대로 올립니다. 엑셀은 브라우저 기본 압축 해제 기능으로 직접 읽고(외부 라이브러리 없음),
+// CSV(UTF-8·엑셀 기본 CP949)도 받습니다.
 // 열: 문서 번호 · 담당 팀(이름 또는 T03) · 담당 직원 사번 · 확신(확실/애매함). 확실 → 확정, 애매함 → 검토 필요, 빈칸 → 상태 유지.
 // 저장은 문서 하나씩 기존 저장 API로 하므로 확정 조건·동시 수정 충돌·이력 기록이 그대로 적용됩니다.
 function parseCsv(text){
@@ -709,11 +710,69 @@ function resolveTeam(v){
   const code=(v.match(/\b(T\d+)\b/)||[])[1];
   return (LIVE_DB?.teams||[]).find(t=>t.team_id===(code||v)||t.team_name===v.replace(/\s*\(.*\)\s*$/,''))||undefined;
 }
+// ── 엑셀(.xlsx) 읽기: xlsx 는 XML 파일 묶음(zip). 압축은 브라우저 기본 DecompressionStream 으로 풉니다. ──
+async function unzipEntries(buf){
+  const v=new DataView(buf),u8=new Uint8Array(buf),dec=new TextDecoder('utf-8');
+  let eocd=-1;for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-65557);i--)if(v.getUint32(i,true)===0x06054b50){eocd=i;break}
+  if(eocd<0)throw Error('엑셀 파일 형식이 아니에요. .xlsx 파일인지 확인해 주세요.');
+  const files={};let p=v.getUint32(eocd+16,true);
+  for(let n=v.getUint16(eocd+10,true);n>0;n--){
+    if(v.getUint32(p,true)!==0x02014b50)break;
+    const method=v.getUint16(p+10,true),size=v.getUint32(p+20,true),nl=v.getUint16(p+28,true),el=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),lo=v.getUint32(p+42,true);
+    const name=dec.decode(u8.subarray(p+46,p+46+nl));
+    const start=lo+30+v.getUint16(lo+26,true)+v.getUint16(lo+28,true);
+    files[name]={method,data:u8.subarray(start,start+size)};
+    p+=46+nl+el+cl;
+  }
+  return files;
+}
+async function unzipText(entry){
+  if(!entry)return null;
+  if(entry.method===0)return new TextDecoder('utf-8').decode(entry.data);
+  if(entry.method!==8||typeof DecompressionStream==='undefined')throw Error('이 브라우저에서는 엑셀을 직접 읽을 수 없어요. 최신 Edge·Chrome을 쓰거나 CSV로 저장해 올려 주세요.');
+  const stream=new Blob([entry.data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return await new Response(stream).text();
+}
+const xmlDoc=t=>new DOMParser().parseFromString(t,'application/xml');
+const colIndex=ref=>{let n=0;for(const ch of ref.replace(/\d+$/,''))n=n*26+ch.charCodeAt(0)-64;return n-1};
+async function readXlsxRows(buf,preferSheet){
+  const files=await unzipEntries(buf);
+  const wb=xmlDoc(await unzipText(files['xl/workbook.xml'])||'');
+  const rels=xmlDoc(await unzipText(files['xl/_rels/workbook.xml.rels'])||'');
+  const sheets=[...wb.getElementsByTagName('sheet')];
+  if(!sheets.length)throw Error('엑셀에서 시트를 찾지 못했어요.');
+  const sheet=sheets.find(s=>s.getAttribute('name')===preferSheet)||sheets[0];
+  const rid=sheet.getAttribute('r:id')||sheet.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id');
+  let target=[...rels.getElementsByTagName('Relationship')].find(r=>r.getAttribute('Id')===rid)?.getAttribute('Target')||'worksheets/sheet1.xml';
+  target=target.startsWith('/')?target.slice(1):'xl/'+target.replace(/^\.\//,'');
+  // 공유 문자열: 엑셀이 글자를 한곳에 모아 두는 표 (윗주(rPh) 글자는 빼고 읽음)
+  const sst=xmlDoc(await unzipText(files['xl/sharedStrings.xml'])||'<sst/>');
+  const strings=[...sst.getElementsByTagName('si')].map(si=>[...si.getElementsByTagName('t')].filter(t=>t.parentNode.nodeName!=='rPh').map(t=>t.textContent).join(''));
+  const ws=xmlDoc(await unzipText(files[target])||'');
+  const rows=[];
+  for(const row of ws.getElementsByTagName('row')){
+    const r=Number(row.getAttribute('r'))-1,out=[];
+    for(const c of row.getElementsByTagName('c')){
+      const type=c.getAttribute('t'),vEl=c.getElementsByTagName('v')[0];
+      let val=type==='inlineStr'?[...c.getElementsByTagName('t')].map(t=>t.textContent).join(''):(vEl?vEl.textContent:'');
+      if(type==='s')val=strings[Number(val)]??'';
+      if(type==='b')val=val==='1'?'TRUE':'FALSE';
+      out[colIndex(c.getAttribute('r')||'A1')]=val;
+    }
+    rows[r>=0?r:rows.length]=Array.from(out,x=>x??'');
+  }
+  return Array.from(rows,x=>x||[]).filter(r=>r.some(v=>String(v).trim()!==''));
+}
+async function readImportRows(file){
+  if(/\.xlsx$/i.test(file.name))return readXlsxRows(await file.arrayBuffer(),'문서분류');
+  if(/\.xls$/i.test(file.name))throw Error('예전 엑셀 형식(.xls)은 읽을 수 없어요. 엑셀에서 .xlsx 로 저장해 올려 주세요.');
+  return parseCsv(await readCsvFile(file));
+}
 function planDocumentImport(rows){
   const head=rows[0].map(h=>h.trim()),col=names=>head.findIndex(h=>names.includes(h));
   const ci={id:col(['문서 번호','문서 ID','document_id']),team:col(['담당 팀','team_name','담당 팀 코드','team_id']),
             owner:col(['담당 직원 사번','담당 직원','owner_employee_id']),sure:col(['확신'])};
-  if(ci.id<0||ci.team<0||ci.owner<0)throw Error('CSV 첫 줄에 "문서 번호 · 담당 팀 · 담당 직원 사번" 열이 있어야 해요. 팀원 작업용 문서분류 엑셀을 그대로 CSV로 저장해 주세요.');
+  if(ci.id<0||ci.team<0||ci.owner<0)throw Error('첫 줄에 "문서 번호 · 담당 팀 · 담당 직원 사번" 열이 있어야 해요. 팀원 작업용 문서분류 엑셀의 "문서분류" 시트를 그대로 올려 주세요.');
   const docs=new Map((LIVE_DB?.documents||[]).map(d=>[d.document_id,d])),seen=new Set();
   const plan={changes:[],same:0,errors:[],review:0,confirm:0,reassign:0};
   for(const [n,r] of rows.slice(1).entries()){
@@ -735,11 +794,11 @@ function planDocumentImport(rows){
   }
   return plan;
 }
-async function importDocumentCsv(file){
+async function importDocumentFile(file){
   if(!LIVE_READY)return toast('DB 목록을 불러온 뒤 다시 시도하세요.');
   if(LIVE_BUSY)return toast('저장 중입니다. 잠시 기다려 주세요.');
   let plan;
-  try{const rows=parseCsv(await readCsvFile(file));if(rows.length<2)throw Error('CSV에 내용이 없어요.');plan=planDocumentImport(rows)}
+  try{const rows=await readImportRows(file);if(rows.length<2)throw Error('파일에 내용이 없어요.');plan=planDocumentImport(rows)}
   catch(e){return toast(e.message)}
   const errs=plan.errors.length?`<br>⚠️ <b>반영하지 않는 줄 ${plan.errors.length}개</b><ul style="margin:4px 0 0;padding-left:18px;font-size:13px">${plan.errors.slice(0,8).map(x=>`<li>${esc(x)}</li>`).join('')}${plan.errors.length>8?`<li>… 외 ${plan.errors.length-8}개</li>`:''}</ul>`:'';
   if(!plan.changes.length)return ask({title:'분류 결과 반영',yes:'닫기',cancel:false,text:`<b>${esc(file.name)}</b><br>바뀔 내용이 없어요. (변화 없음 ${plan.same}건)${errs}`});
@@ -758,7 +817,7 @@ async function importDocumentCsv(file){
     }
   }finally{LIVE_BUSY=false;try{await liveRefresh()}catch(e){toast(e.message)}}
   await ask({title:'분류 결과 반영 완료',yes:'닫기',cancel:false,
-    text:`저장 ${done}건${failed.length?` · 실패 ${failed.length}건<ul style="margin:4px 0 0;padding-left:18px;font-size:13px">${failed.slice(0,8).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}${plan.errors.length?`<br>처음부터 반영하지 않은 줄 ${plan.errors.length}개는 CSV를 고쳐 다시 올려 주세요.`:''}`});
+    text:`저장 ${done}건${failed.length?` · 실패 ${failed.length}건<ul style="margin:4px 0 0;padding-left:18px;font-size:13px">${failed.slice(0,8).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}${plan.errors.length?`<br>처음부터 반영하지 않은 줄 ${plan.errors.length}개는 엑셀을 고쳐 다시 올려 주세요.`:''}`});
 }
 
 function exportDocuments(){liveCsv([['문서 ID','문서 유형','담당 팀 코드','담당 팀','담당 직원','직책','문서 상태','마지막 수정'],
