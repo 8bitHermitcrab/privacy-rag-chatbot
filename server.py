@@ -40,6 +40,7 @@ WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 LOGIN = os.path.join(WEB_DIR, "login.html")     # 시작(로그인) 화면
 LION = os.path.join(WEB_DIR, "index.html")      # 어흥이 버전 (기본)
 SIMPLE = os.path.join(WEB_DIR, "simple.html")   # 심플 버전
+STAFF_LOGIN = os.path.join(WEB_DIR, "staff_login.html")  # 직원용 로그인 화면
 
 
 class Ask(BaseModel):
@@ -50,6 +51,12 @@ class Ask(BaseModel):
 @app.get("/")
 def login():
     return RedirectResponse('/login', status_code=303)
+
+
+@app.get("/staff")
+def staff_login():
+    # 직원용 로그인 화면. 로그인 처리는 기존 /api/login·/api/password 를 그대로 사용합니다.
+    return FileResponse(STAFF_LOGIN, media_type='text/html')
 
 
 @app.get("/chat")
@@ -107,12 +114,13 @@ def authenticated_chat_page(request, path):
             current(request, conn)
     except HTTPException as error:
         if error.status_code in (401, 403):
-            return RedirectResponse('/login', status_code=303)
+            # 로그인 안 됨·첫 비밀번호 변경 전 → 직원 로그인 화면 (관리자 계정이면 그 화면에서 관리자 화면으로 안내)
+            return RedirectResponse('/staff', status_code=303)
         raise
     # 기존 챗봇 두 화면에 같은 인증 헤더를 적용합니다. 질문 원문은 저장하지 않습니다.
     bootstrap = """<script>const originalFetch=window.fetch.bind(window);let businessCsrf=null;
 window.fetch=async function(input,options={}){if(typeof input==='string'&&input==='/api/chat'){
-if(!businessCsrf){const r=await originalFetch('/api/me',{cache:'no-store'});if(!r.ok){location.href='/login';throw Error('로그인이 필요합니다.')}businessCsrf=(await r.json()).csrf}
+if(!businessCsrf){const r=await originalFetch('/api/me',{cache:'no-store'});if(!r.ok){location.href='/staff';throw Error('로그인이 필요합니다.')}businessCsrf=(await r.json()).csrf}
 options={...options,headers:{...options.headers,'X-CSRF-Token':businessCsrf}};}
 const response=await originalFetch(input,options);if(typeof input==='string'&&input==='/api/chat'&&!response.ok){let d;try{d=await response.clone().json()}catch{}return new Response(JSON.stringify({error:d?.detail||'요청을 처리하지 못했습니다.'}),{status:200,headers:{'Content-Type':'application/json'}})}return response};</script>"""
     with open(path, encoding='utf-8') as handle:
@@ -127,7 +135,7 @@ async def business_headers(request, call_next):
         response = await call_next(request)
     except (psycopg.Error, FileNotFoundError):
         response = JSONResponse({'detail': 'DB 또는 업무 계정 설정을 확인하세요.'}, status_code=503)
-    if request.url.path.startswith('/api/') or request.url.path in ('/admin', '/login', '/chat', '/simple'):
+    if request.url.path.startswith('/api/') or request.url.path in ('/admin', '/login', '/staff', '/chat', '/simple'):
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'same-origin'

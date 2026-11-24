@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>어흥이 직원 로그인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<!--
+  직원용 로그인 화면 (/staff)
+  - 로그인·비밀번호 변경은 기존 API를 그대로 사용합니다: /api/login, /api/me, /api/password, /api/logout
+  - 로그인에 성공한 직원은 바로 챗봇(/chat)으로 이동합니다.
+  - 관리자 계정은 관리자 화면(/admin)으로 안내합니다.
+  - 비밀번호는 화면·콘솔·저장소 어디에도 남기지 않습니다 (전송 후 입력칸을 비웁니다).
+-->
+<style>
+  :root{
+    --card:#FFFDF8; --ink:#4A2E14; --ink2:#7A5634; --line:#EED9B5;
+    --mane:#E8892B; --mane2:#C9671A; --accent:#E26D2C; --error:#B43B3B; --errorBg:#FDECEA;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px 16px;
+       background:radial-gradient(circle at 50% 100%,#FFD58F 0,#FCE5BC 45%,#FBDDA8 100%);
+       color:var(--ink);font-family:'Gowun Dodum','Apple SD Gothic Neo','Malgun Gothic',sans-serif;word-break:keep-all}
+  main{width:100%;max-width:440px;display:flex;flex-direction:column;align-items:center}
+  h1{margin:0;font-family:'Jua',sans-serif;font-weight:400;font-size:32px;line-height:1.2;text-align:center}
+  .sub{margin:6px 0 20px;color:var(--ink2);font-size:15px;text-align:center}
+
+  .speech{position:relative;width:100%;max-width:360px;background:var(--card);border:3px solid var(--ink);border-radius:24px;
+          padding:14px 18px;font-size:18px;line-height:1.6;text-align:center;box-shadow:0 5px 0 rgba(74,46,20,.18)}
+  .speech::after{content:"";position:absolute;left:50%;bottom:-14px;transform:translateX(-50%) rotate(45deg);width:22px;height:22px;
+                 background:var(--card);border-right:3px solid var(--ink);border-bottom:3px solid var(--ink)}
+
+  .lion{width:160px;margin-top:14px;position:relative;z-index:2;margin-bottom:-34px}
+  .lion svg{display:block;width:100%;height:auto;overflow:visible}
+  #head{transform-box:fill-box;transform-origin:50% 100%;animation:sway 4s ease-in-out infinite}
+  .eye{transform-box:fill-box;transform-origin:center;animation:blink 4.5s infinite}
+
+  .card{width:100%;background:var(--card);border:3px solid var(--ink);border-radius:26px;padding:60px 26px 24px;
+        box-shadow:0 7px 0 rgba(74,46,20,.18)}
+  form{display:flex;flex-direction:column;gap:14px;margin:0}
+  form[hidden],.panel[hidden]{display:none}
+  h2{margin:0 0 4px;font-family:'Jua',sans-serif;font-weight:400;font-size:22px;text-align:center}
+  label{display:flex;flex-direction:column;gap:6px;font-size:15px;font-weight:700}
+  .hint{font-weight:400;font-size:13px;color:var(--ink2)}
+  input{width:100%;font:inherit;font-size:17px;color:var(--ink);padding:11px 14px;border:3px solid var(--ink);border-radius:14px;background:#fff}
+  input:focus-visible{outline:3px solid var(--mane);outline-offset:2px}
+
+  .go{display:block;width:100%;font-family:'Jua',sans-serif;font-size:22px;color:#fff;text-decoration:none;text-align:center;
+      padding:11px 0;margin-top:4px;border-radius:999px;background:var(--accent);border:3px solid var(--ink);
+      box-shadow:inset 0 0 0 3px #FFE3C8,0 4px 0 var(--mane2);cursor:pointer;transition:transform .1s,box-shadow .1s}
+  .go:hover{background:#EA7A37}
+  .go:active{transform:translateY(3px);box-shadow:inset 0 0 0 3px #FFE3C8,0 1px 0 var(--mane2)}
+  .go:focus-visible{outline:3px solid var(--mane);outline-offset:4px}
+  .go:disabled{opacity:.6;cursor:wait}
+  .link{background:none;border:0;padding:4px;font:inherit;font-size:14px;color:var(--ink2);text-decoration:underline;cursor:pointer;text-align:center}
+
+  #message{margin:16px 0 0;min-height:0;font-size:15px;line-height:1.5;white-space:pre-wrap;text-align:center}
+  #message:not(:empty){padding:10px 12px;border-radius:12px;background:var(--errorBg);color:var(--error);border:2px solid #F3C1BB}
+  #message.ok:not(:empty){background:#EEF7EC;color:#2F6B2E;border-color:#BFE0BA}
+  .foot{margin:18px 0 0;font-size:13px;color:var(--ink2);text-align:center}
+  .foot a{color:var(--ink2)}
+
+  @keyframes sway{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+  @keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+  @media (max-width:420px){h1{font-size:27px}.speech{font-size:16px}.lion{width:135px;margin-bottom:-28px}.card{padding:50px 18px 20px}}
+</style>
+</head>
+<body>
+<main>
+  <h1>아기 사자 어흥이</h1>
+  <p class="sub">직원 로그인</p>
+
+  <div class="speech" id="speech">어흥! 반가워요!<br>사번과 비밀번호를 알려 주세요</div>
+
+  <div class="lion" aria-hidden="true">
+    <svg viewBox="0 0 180 190" xmlns="http://www.w3.org/2000/svg">
+      <g id="head">
+        <g fill="#E8892B" id="mane"></g>
+        <circle cx="90" cy="90" r="62" fill="#D9771F"/>
+        <circle cx="46" cy="46" r="16" fill="#F7C46C"/><circle cx="46" cy="46" r="8" fill="#F2A35E"/>
+        <circle cx="134" cy="46" r="16" fill="#F7C46C"/><circle cx="134" cy="46" r="8" fill="#F2A35E"/>
+        <circle cx="90" cy="94" r="50" fill="#F7C46C"/>
+        <ellipse cx="90" cy="116" rx="24" ry="17" fill="#FFF1D6"/>
+        <g class="eye"><ellipse cx="70" cy="88" rx="6.5" ry="8" fill="#4A2E14"/><circle cx="72" cy="85" r="2.4" fill="#fff"/></g>
+        <g class="eye"><ellipse cx="110" cy="88" rx="6.5" ry="8" fill="#4A2E14"/><circle cx="112" cy="85" r="2.4" fill="#fff"/></g>
+        <ellipse cx="56" cy="106" rx="8.5" ry="5.5" fill="#F29C8B" opacity=".7"/>
+        <ellipse cx="124" cy="106" rx="8.5" ry="5.5" fill="#F29C8B" opacity=".7"/>
+        <path d="M82 107 Q90 102 98 107 Q90 116 82 107Z" fill="#7A3E1A"/>
+        <path d="M90 113 V117 M90 117 Q83 124 76 120 M90 117 Q97 124 104 120" stroke="#7A3E1A" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+      </g>
+      <g><ellipse cx="56" cy="174" rx="20" ry="12" fill="#F7C46C"/><path d="M49 172 v6 M56 172 v7 M63 172 v6" stroke="#C9671A" stroke-width="2.2" stroke-linecap="round"/></g>
+      <g><ellipse cx="124" cy="174" rx="20" ry="12" fill="#F7C46C"/><path d="M117 172 v6 M124 172 v7 M131 172 v6" stroke="#C9671A" stroke-width="2.2" stroke-linecap="round"/></g>
+    </svg>
+  </div>
+
+  <div class="card">
+    <!-- ① 로그인 -->
+    <form id="loginForm" novalidate>
+      <label>사번
+        <input id="loginId" autocomplete="username" required maxlength="100" placeholder="예: E2026001" autocapitalize="characters" spellcheck="false">
+      </label>
+      <label>비밀번호
+        <input id="password" type="password" autocomplete="current-password" required maxlength="256">
+      </label>
+      <button class="go" id="loginBtn">어흥! 들어가기</button>
+    </form>
+
+    <!-- ② 첫 로그인: 초기 비밀번호 변경 -->
+    <form id="changeForm" hidden novalidate>
+      <h2>새 비밀번호 정하기</h2>
+      <label>지금 비밀번호 <span class="hint">관리자에게 받은 임시 비밀번호</span>
+        <input id="oldPw" type="password" autocomplete="current-password" required maxlength="256">
+      </label>
+      <label>새 비밀번호 <span class="hint">14자 이상</span>
+        <input id="newPw" type="password" autocomplete="new-password" required minlength="14" maxlength="256">
+      </label>
+      <label>새 비밀번호 확인
+        <input id="newPw2" type="password" autocomplete="new-password" required minlength="14" maxlength="256">
+      </label>
+      <button class="go" id="changeBtn">바꾸고 시작하기</button>
+      <button type="button" class="link" data-logout>다른 계정으로 로그인</button>
+    </form>
+
+    <!-- ③ 관리자 계정으로 들어온 경우 -->
+    <div class="panel" id="adminPanel" hidden>
+      <h2>관리자 계정이에요</h2>
+      <a class="go" href="/admin">관리자 화면으로 가기</a>
+      <button type="button" class="link" data-logout>직원 계정으로 다시 로그인</button>
+    </div>
+
+    <p id="message" role="alert" aria-live="polite"></p>
+  </div>
+
+  <p class="foot">계정이 없거나 비밀번호를 잊었다면 관리자에게 문의하세요.</p>
+</main>
+
+<script>
+// 갈기 (원 12개)
+document.getElementById('mane').innerHTML = Array.from({length:12}, (_, i) => {
+  const a = i * Math.PI / 6;
+  return `<circle cx="${(90 + 60 * Math.cos(a)).toFixed(1)}" cy="${(92 + 60 * Math.sin(a)).toFixed(1)}" r="25"/>`;
+}).join('');
+
+const $ = id => document.getElementById(id);
+const SPEECH = {
+  login:  '어흥! 반가워요!<br>사번과 비밀번호를 알려 주세요',
+  change: '처음 오셨네요!<br>나만의 새 비밀번호를 정해 주세요',
+  admin:  '관리자님이시군요!<br>관리자 화면은 따로 있어요',
+  go:     '좋아요! 챗봇으로 데려다 줄게요'
+};
+let csrf = '';
+
+function say(key){ $('speech').innerHTML = SPEECH[key]; }
+function message(text, ok = false){ $('message').textContent = text || ''; $('message').classList.toggle('ok', ok); }
+
+function show(view){
+  $('loginForm').hidden = view !== 'login';
+  $('changeForm').hidden = view !== 'change';
+  $('adminPanel').hidden = view !== 'admin';
+  say(view);
+  const first = { login: 'loginId', change: 'oldPw' }[view];
+  if (first) $(first).focus();
+}
+
+// 서버가 돌려준 상태 코드를 직원이 이해하기 쉬운 문장으로 바꿉니다.
+function explain(status, detail){
+  if (status === 401) return '사번 또는 비밀번호가 맞지 않아요. 다시 확인해 주세요.';
+  if (status === 429) return '로그인을 여러 번 실패했어요. 15분 뒤에 다시 시도해 주세요.';
+  if (status === 403 && String(detail).includes('출처'))
+    return '허용되지 않은 주소로 접속했어요. 안내받은 주소(예: http://127.0.0.1:8080/staff)로 다시 열어 주세요.';
+  if (status === 503) return '지금 서버(DB)에 연결할 수 없어요. 잠시 뒤 다시 시도하거나 관리자에게 알려 주세요.';
+  return typeof detail === 'string' && detail ? detail : '요청을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
+}
+
+async function post(url, body){
+  let r;
+  try {
+    r = await fetch(url, { method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body) });
+  } catch { throw Error('서버에 연결할 수 없어요. 서버가 켜져 있는지 확인해 주세요.'); }
+  let d = {};
+  try { d = await r.json(); } catch {}
+  if (!r.ok) throw Error(r.status === 422 ? '입력값을 확인해 주세요.' : explain(r.status, d.detail));
+  return d;
+}
+
+// 이미 로그인되어 있는지 확인하고, 상태에 맞는 화면으로 보냅니다.
+async function route(){
+  let r;
+  try { r = await fetch('/api/me', { cache: 'no-store' }); }
+  catch { show('login'); message('서버에 연결할 수 없어요. 서버가 켜져 있는지 확인해 주세요.'); return; }
+  if (r.status === 503) { show('login'); message(explain(503)); return; }
+  if (!r.ok) { show('login'); return; }          // 로그인 안 됨 / 세션 만료
+  const me = await r.json();
+  csrf = me.csrf;
+  if (me.must_change_password) { show('change'); return; }
+  if (me.can_manage_users) { show('admin'); return; }
+  say('go');
+  location.replace('/chat');
+}
+
+$('loginForm').onsubmit = async e => {
+  e.preventDefault();
+  const id = $('loginId').value.trim(), pw = $('password').value;
+  if (!id || !pw) { message('사번과 비밀번호를 모두 입력해 주세요.'); return; }
+  $('loginBtn').disabled = true; message('');
+  try {
+    await post('/api/login', { login_id: id, password: pw });
+    $('password').value = '';
+    await route();
+  } catch (err) {
+    $('password').value = ''; message(err.message); $('password').focus();
+  } finally { $('loginBtn').disabled = false; }
+};
+
+$('changeForm').onsubmit = async e => {
+  e.preventDefault();
+  const oldPw = $('oldPw').value, newPw = $('newPw').value, newPw2 = $('newPw2').value;
+  if (!oldPw) { message('지금 비밀번호(임시 비밀번호)를 입력해 주세요.'); return; }
+  if (newPw.length < 14) { message('새 비밀번호는 14자 이상이어야 해요.'); return; }
+  if (newPw !== newPw2) { message('새 비밀번호와 확인 값이 서로 달라요.'); return; }
+  if (newPw === oldPw) { message('지금 비밀번호와 다른 값으로 정해 주세요.'); return; }
+  $('changeBtn').disabled = true; message('');
+  try {
+    await post('/api/password', { old_password: oldPw, new_password: newPw });
+    ['oldPw', 'newPw', 'newPw2'].forEach(k => $(k).value = '');
+    message('비밀번호를 바꿨어요!', true);
+    await route();                                  // 새 세션으로 다시 확인 → 챗봇으로 이동
+  } catch (err) { message(err.message); }
+  finally { $('changeBtn').disabled = false; }
+};
+
+document.querySelectorAll('[data-logout]').forEach(b => b.onclick = async () => {
+  try { await post('/api/logout', {}); } catch {}
+  csrf = ''; message(''); show('login');
+});
+
+route();
+</script>
+</body>
+</html>
