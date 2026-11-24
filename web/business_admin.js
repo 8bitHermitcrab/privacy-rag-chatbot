@@ -461,6 +461,8 @@ function drawDocumentsPage(){
       <select id="docTeam" aria-label="담당 팀"><option value="">모든 팀</option><option value="NONE">팀 미지정</option>${teams.map(t=>`<option value="${esc(t.team_id)}">${esc(t.team_name)} (${esc(t.team_id)})</option>`).join('')}</select>
       <select id="docType" aria-label="문서 유형"><option value="">모든 문서 유형</option>${types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
       <button type="button" class="ghostBtn" id="docExport">↓ 내보내기</button>
+      <button type="button" class="ghostBtn" id="docImport" title="팀원이 채운 문서분류 엑셀을 CSV로 저장해 올리면 미리 보기 후 반영합니다">↑ 분류 결과 반영 (CSV)</button>
+      <input type="file" id="docImportFile" accept=".csv,text/csv" hidden>
     </div>
     <div class="actions" style="align-items:center;flex-wrap:wrap">
       <span id="docSelInfo" style="color:var(--ink2);font-size:14px;margin-right:auto"></span>
@@ -477,6 +479,8 @@ function drawDocumentsPage(){
   $('docTeam').onchange=e=>{docState.team=e.target.value;drawDocRows()};
   $('docType').onchange=e=>{docState.type=e.target.value;drawDocRows()};
   $('docExport').onclick=exportDocuments;
+  $('docImport').onclick=()=>$('docImportFile').click();
+  $('docImportFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)importDocumentCsv(f)};
   $('docAll').onchange=e=>{for(const d of filteredDocs())e.target.checked?docState.sel.add(d.document_id):docState.sel.delete(d.document_id);drawDocRows()};
   $('docBulkConfirm').onclick=()=>bulkDocStatus('CONFIRMED');
   $('docBulkReview').onclick=()=>bulkDocStatus('REVIEW_REQUIRED');
@@ -679,6 +683,83 @@ function drawDataChecks(){
 }
 const originalBindSystem=bindSystem;
 bindSystem=function(){originalBindSystem();drawDataChecks()};
+
+// ── 팀원 문서 분류 결과(엑셀 → CSV) 반영 ────────────────────────────────────
+// 팀원 작업 2의 '문서분류_날짜.xlsx'를 엑셀에서 'CSV UTF-8'로 저장해 올립니다. (일반 CSV(한글 깨짐 위험)도 자동으로 읽어 봄)
+// 열: 문서 번호 · 담당 팀(이름 또는 T03) · 담당 직원 사번 · 확신(확실/애매함). 확실 → 확정, 애매함 → 검토 필요, 빈칸 → 상태 유지.
+// 저장은 문서 하나씩 기존 저장 API로 하므로 확정 조건·동시 수정 충돌·이력 기록이 그대로 적용됩니다.
+function parseCsv(text){
+  const rows=[];let row=[],cell='',q=false;
+  text=text.replace(/^﻿/,'');
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){if(ch==='"'){if(text[i+1]==='"'){cell+='"';i++}else q=false}else cell+=ch;continue}
+    if(ch==='"')q=true;else if(ch===',')(row.push(cell),cell='');else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cell);rows.push(row);row=[];cell=''}else cell+=ch;
+  }
+  if(cell!==''||row.length){row.push(cell);rows.push(row)}
+  return rows.filter(r=>r.some(v=>v.trim()!==''));
+}
+async function readCsvFile(file){
+  const buf=await file.arrayBuffer();
+  const utf=new TextDecoder('utf-8').decode(buf);
+  return utf.includes('�')?new TextDecoder('euc-kr').decode(buf):utf;   // 엑셀 기본 CSV(CP949)도 읽기
+}
+function resolveTeam(v){
+  v=String(v||'').trim();if(!v)return null;
+  const code=(v.match(/\b(T\d+)\b/)||[])[1];
+  return (LIVE_DB?.teams||[]).find(t=>t.team_id===(code||v)||t.team_name===v.replace(/\s*\(.*\)\s*$/,''))||undefined;
+}
+function planDocumentImport(rows){
+  const head=rows[0].map(h=>h.trim()),col=names=>head.findIndex(h=>names.includes(h));
+  const ci={id:col(['문서 번호','문서 ID','document_id']),team:col(['담당 팀','team_name','담당 팀 코드','team_id']),
+            owner:col(['담당 직원 사번','담당 직원','owner_employee_id']),sure:col(['확신'])};
+  if(ci.id<0||ci.team<0||ci.owner<0)throw Error('CSV 첫 줄에 "문서 번호 · 담당 팀 · 담당 직원 사번" 열이 있어야 해요. 팀원 작업용 문서분류 엑셀을 그대로 CSV로 저장해 주세요.');
+  const docs=new Map((LIVE_DB?.documents||[]).map(d=>[d.document_id,d])),seen=new Set();
+  const plan={changes:[],same:0,errors:[],review:0,confirm:0,reassign:0};
+  for(const [n,r] of rows.slice(1).entries()){
+    const line=n+2,id=(r[ci.id]||'').trim();if(!id)continue;
+    const bad=msg=>plan.errors.push(`${line}줄 ${id}: ${msg}`);
+    const d=docs.get(id);if(!d){bad('DB에 없는 문서 번호');continue}
+    if(seen.has(id)){bad('같은 문서가 두 번 나옴');continue}seen.add(id);
+    const team=resolveTeam(r[ci.team]);if(team===undefined){bad(`모르는 팀 "${r[ci.team]}"`);continue}
+    const owner=(r[ci.owner]||'').trim()||null,sure=ci.sure<0?'':(r[ci.sure]||'').trim();
+    if(owner&&!liveEmp(owner)){bad(`모르는 사번 "${owner}"`);continue}
+    const status=sure==='확실'?'CONFIRMED':sure==='애매함'?'REVIEW_REQUIRED':d.metadata_status;
+    const v={team_id:team?.team_id||null,owner_employee_id:owner,metadata_status:status};
+    if(status==='CONFIRMED'&&!docConfirmable(v.team_id,v.owner_employee_id)){bad('확정하려면 담당 직원이 그 팀의 확정 직원이어야 함 (확신을 "애매함"으로 하거나 담당자를 고쳐 주세요)');continue}
+    const ch=Object.fromEntries(Object.entries(v).filter(([k,val])=>(d[k]??null)!==val));
+    if(!Object.keys(ch).length){plan.same++;continue}
+    if('team_id' in ch||'owner_employee_id' in ch)plan.reassign++;
+    if(ch.metadata_status==='CONFIRMED')plan.confirm++;if(ch.metadata_status==='REVIEW_REQUIRED')plan.review++;
+    plan.changes.push({d,ch});
+  }
+  return plan;
+}
+async function importDocumentCsv(file){
+  if(!LIVE_READY)return toast('DB 목록을 불러온 뒤 다시 시도하세요.');
+  if(LIVE_BUSY)return toast('저장 중입니다. 잠시 기다려 주세요.');
+  let plan;
+  try{const rows=parseCsv(await readCsvFile(file));if(rows.length<2)throw Error('CSV에 내용이 없어요.');plan=planDocumentImport(rows)}
+  catch(e){return toast(e.message)}
+  const errs=plan.errors.length?`<br>⚠️ <b>반영하지 않는 줄 ${plan.errors.length}개</b><ul style="margin:4px 0 0;padding-left:18px;font-size:13px">${plan.errors.slice(0,8).map(x=>`<li>${esc(x)}</li>`).join('')}${plan.errors.length>8?`<li>… 외 ${plan.errors.length-8}개</li>`:''}</ul>`:'';
+  if(!plan.changes.length)return ask({title:'분류 결과 반영',yes:'닫기',cancel:false,text:`<b>${esc(file.name)}</b><br>바뀔 내용이 없어요. (변화 없음 ${plan.same}건)${errs}`});
+  const r=await ask({title:'분류 결과 반영 · 미리 보기',yes:`${plan.changes.length}건 반영`,
+    text:`<b>${esc(file.name)}</b><br>바뀌는 문서 <b>${plan.changes.length}건</b> · 변화 없음 ${plan.same}건`
+      +`<br>· 담당 팀·직원 변경 ${plan.reassign}건 · 확정으로 ${plan.confirm}건 · 검토 필요로 ${plan.review}건 <small>(애매함 → 검토 필요 = 챗봇 검색에서 빠짐)</small>`
+      +`<br>예: ${plan.changes.slice(0,5).map(x=>esc(x.d.document_id)).join(', ')}${plan.changes.length>5?' …':''}${errs}`
+      +'<br>문서마다 따로 저장하고 활동 기록을 남깁니다.',
+    fields:reasonField('예: 팀원 문서 분류 결과(문서분류_1124) 반영'),check:v=>(v.reason||'').length<3?'사유를 3자 이상 적어 주세요. 활동 기록에 남아요.':''});
+  if(!r)return;
+  LIVE_BUSY=true;let done=0;const failed=[];
+  try{
+    for(const {d,ch} of plan.changes){
+      try{await liveApi('/api/admin/save',{kind:'documents',key:d.document_id,values:ch,reason:r.reason,version:d.updated_at});done++}
+      catch(e){failed.push(`${d.document_id}: ${e.message}`)}
+    }
+  }finally{LIVE_BUSY=false;try{await liveRefresh()}catch(e){toast(e.message)}}
+  await ask({title:'분류 결과 반영 완료',yes:'닫기',cancel:false,
+    text:`저장 ${done}건${failed.length?` · 실패 ${failed.length}건<ul style="margin:4px 0 0;padding-left:18px;font-size:13px">${failed.slice(0,8).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}${plan.errors.length?`<br>처음부터 반영하지 않은 줄 ${plan.errors.length}개는 CSV를 고쳐 다시 올려 주세요.`:''}`});
+}
 
 function exportDocuments(){liveCsv([['문서 ID','문서 유형','담당 팀 코드','담당 팀','담당 직원','직책','문서 상태','마지막 수정'],
   ...filteredDocs().map(d=>[d.document_id,d.document_type,d.team_id,liveTeam(d.team_id)?.team_name||'',d.owner_employee_id,liveEmp(d.owner_employee_id)?.position_code||'',DOC_STATUS[d.metadata_status]||d.metadata_status,d.updated_at||''])],'문서목록.csv')}
