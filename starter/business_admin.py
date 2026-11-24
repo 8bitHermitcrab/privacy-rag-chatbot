@@ -66,6 +66,7 @@ def unpack(value):
 def current(request, conn, *, manager=False, changing=False):
     payload = unpack(request.cookies.get(COOKIE, ''))
     user = conn.execute(f'''SELECT {USER_COLS},COALESCE(p.search_scope,'NONE') AS search_scope,COALESCE(p.can_restore,false) AS can_restore,r.can_manage_users,
+        p.restore_person,p.restore_phone,p.restore_email,p.restore_address,p.restore_rrn,p.restore_account,p.restore_card,
         e.team_id,e.position_code,e.verification_status,t.is_active AS team_active
         FROM auth.user_info u JOIN auth.role_info r USING(role_code)
         LEFT JOIN auth.employee_info e USING(employee_id)
@@ -157,7 +158,7 @@ def me(request: Request):
         user, payload = current(request, conn, changing=True)
         return {'login_id': user['login_id'], 'csrf': payload['csrf'], 'must_change_password': user['must_change_password'],
             'can_manage_users': user['can_manage_users'], 'role_code': user['role_code'], 'team_id': user['team_id'], 'position_code': user['position_code'],
-            'search_scope': user['search_scope'], 'can_restore': user['can_restore'],
+            'search_scope': user['search_scope'], 'can_restore': user['can_restore'], 'restore': restore_of(user),
             'can_review_persons': bool(user['can_manage_users'] and user['can_review_persons'])}
 
 
@@ -382,11 +383,58 @@ def reset_password(user_id: int, body: ResetPassword, request: Request):
     return JSONResponse({'ok': True, 'temporary_password': temporary}, headers={'Cache-Control': 'no-store'})
 
 
+# 개인정보 7종 복원 수준. 마킹은 항상 7종 모두 하고, 화면 표시 때 되돌릴 종류만 정합니다.
+RESTORE_KINDS = ('person', 'phone', 'email', 'address', 'rrn', 'account', 'card')
+RESTORE_PARTIAL_ONLY = ('rrn', 'account', 'card')
+RESTORE_LEVELS = ('NONE', 'PARTIAL', 'FULL')
+NO_RESTORE = {kind: 'NONE' for kind in RESTORE_KINDS}
+
+
+def restore_of(row):
+    """정책 행(또는 current 사용자)의 7종 복원 수준. 전체 스위치나 검색 범위가 막혀 있으면 모두 NONE."""
+    if not row or not row.get('can_restore') or row.get('search_scope', 'NONE') == 'NONE':
+        return dict(NO_RESTORE)
+    return {kind: row.get('restore_' + kind) or 'NONE' for kind in RESTORE_KINDS}
+
+
+def checked_restore(values, scope):
+    """요청의 복원 수준을 검증합니다. None 이면 변경하지 않는다는 뜻입니다."""
+    if values is None:
+        return None
+    if set(values) - set(RESTORE_KINDS):
+        raise HTTPException(400, '복원 항목은 이름·전화번호·이메일·주소·주민번호·계좌·카드만 설정할 수 있습니다.')
+    levels = {kind: values.get(kind, 'NONE') for kind in RESTORE_KINDS}
+    for kind, level in levels.items():
+        if level not in RESTORE_LEVELS:
+            raise HTTPException(400, '복원 수준은 안 함·일부·전체 중에서 선택하세요.')
+        if kind in RESTORE_PARTIAL_ONLY and level == 'FULL':
+            raise HTTPException(400, '주민번호·계좌·카드는 일부 복원까지만 허용합니다.')
+    if scope == 'NONE' and any(level != 'NONE' for level in levels.values()):
+        raise HTTPException(400, '검색 불가 정책에는 복원을 허용할 수 없습니다.')
+    return levels
+
+
+def stored_restore(old):
+    return {kind: old['restore_' + kind] for kind in RESTORE_KINDS} if old else dict(NO_RESTORE)
+
+
+def write_policy(conn, team_id, position_code, scope, can_restore, levels, exists):
+    cols = ['search_scope', 'can_restore'] + ['restore_' + kind for kind in RESTORE_KINDS]
+    values = [scope, can_restore] + [levels[kind] for kind in RESTORE_KINDS]
+    if exists:
+        conn.execute('UPDATE auth.team_position_policy SET ' + ','.join(c + '=%s' for c in cols)
+                     + ' WHERE team_id=%s AND position_code=%s', (*values, team_id, position_code))
+    else:
+        conn.execute('INSERT INTO auth.team_position_policy(team_id,position_code,' + ','.join(cols) + ') VALUES ('
+                     + ','.join(['%s'] * (len(cols) + 2)) + ')', (team_id, position_code, *values))
+
+
 class TeamPositionPolicy(BaseModel):
     team_id: str = Field(min_length=1, max_length=100)
     position_code: str = Field(min_length=1, max_length=100)
     search_scope: str
     can_restore: bool = False
+    restore: dict[str, str] | None = None
     reason: str = Field(min_length=3, max_length=500)
     version: str | None = None
 
@@ -397,6 +445,7 @@ def save_policy(body: TeamPositionPolicy, request: Request):
         raise HTTPException(400, '직책과 검색 범위를 확인하세요.')
     if body.can_restore and body.search_scope == 'NONE':
         raise HTTPException(400, '검색 불가 정책에는 복원을 허용할 수 없습니다.')
+    requested = checked_restore(body.restore, body.search_scope)
     if body.team_id != body.team_id.strip() or body.position_code != body.position_code.strip():
         raise HTTPException(400, '팀 코드와 직책 앞뒤 공백을 제거하세요.')
     if len(body.reason.strip()) < 3:
@@ -409,17 +458,19 @@ def save_policy(body: TeamPositionPolicy, request: Request):
                 WHERE team_id=%s AND position_code=%s FOR UPDATE''', (body.team_id, body.position_code)).fetchone()
             if (old and body.version != old['updated_at'].isoformat()) or (not old and body.version):
                 raise HTTPException(409, '정책이 변경되었습니다. 새로고침 후 다시 확인하세요.')
-            if old:
-                conn.execute('''UPDATE auth.team_position_policy SET search_scope=%s,can_restore=%s
-                    WHERE team_id=%s AND position_code=%s''', (body.search_scope, body.can_restore, body.team_id, body.position_code))
+            # 복원 수준을 보내면 그 값으로, 안 보내면 기존 값을 유지합니다. 전체 스위치가 꺼지면 7종 모두 NONE 입니다.
+            if requested is not None:
+                levels = requested
+                can_restore = body.can_restore or any(v != 'NONE' for v in levels.values())
             else:
-                conn.execute('''INSERT INTO auth.team_position_policy(team_id,position_code,search_scope,can_restore)
-                    VALUES (%s,%s,%s,%s)''', (body.team_id, body.position_code, body.search_scope, body.can_restore))
-            before = {k: old[k] for k in ('search_scope', 'can_restore')} if old else None
+                can_restore = body.can_restore
+                levels = stored_restore(old) if can_restore else dict(NO_RESTORE)
+            write_policy(conn, body.team_id, body.position_code, body.search_scope, can_restore, levels, bool(old))
+            before = {'search_scope': old['search_scope'], 'can_restore': old['can_restore'], 'restore': stored_restore(old)} if old else None
             log(conn, actor['user_id'], 'TEAM_POSITION_POLICY_SAVED', body.reason,
                 {'entity': 'team_position_policy', 'team_id': body.team_id, 'position_code': body.position_code, 'values': before},
                 {'entity': 'team_position_policy', 'team_id': body.team_id, 'position_code': body.position_code,
-                 'values': {'search_scope': body.search_scope, 'can_restore': body.can_restore}})
+                 'values': {'search_scope': body.search_scope, 'can_restore': can_restore, 'restore': levels}})
         return {'ok': True}
     except psycopg.IntegrityError:
         raise HTTPException(400, '등록된 팀과 정책 조합을 확인하세요.') from None
@@ -428,6 +479,7 @@ def save_policy(body: TeamPositionPolicy, request: Request):
 class TeamPolicyRow(BaseModel):
     position_code: str = Field(min_length=1, max_length=100)
     search_scope: str
+    restore: dict[str, str] | None = None
     version: str | None = Field(default=None, max_length=100)
 
 
@@ -450,6 +502,7 @@ def save_team_policies(body: TeamPolicyBatch, request: Request):
             raise HTTPException(400, '직책을 입력하고 앞뒤 공백을 제거하세요.')
         if row.search_scope not in ('OWN', 'TEAM', 'NONE'):
             raise HTTPException(400, '검색 범위는 본인 담당·소속 팀·검색 불가 중 선택하세요.')
+        checked_restore(row.restore, row.search_scope)
     try:
         with connection() as conn:
             conn.execute('SELECT pg_advisory_xact_lock(%s)', (LOCK_ID,))
@@ -467,18 +520,19 @@ def save_team_policies(body: TeamPolicyBatch, request: Request):
             saved = []
             for row in body.policies:
                 old = existing.get(row.position_code)
-                can_restore = bool(old and old['can_restore'] and row.search_scope != 'NONE')
-                after = {'search_scope': row.search_scope, 'can_restore': can_restore}
-                before = {k: old[k] for k in after} if old else None
+                requested = checked_restore(row.restore, row.search_scope)
+                if requested is not None:
+                    levels = requested
+                    can_restore = any(v != 'NONE' for v in levels.values())
+                else:
+                    # 복원 항목을 보내지 않으면 기존 설정을 보존하고, 검색 불가로 바뀌면 모두 끕니다.
+                    can_restore = bool(old and old['can_restore'] and row.search_scope != 'NONE')
+                    levels = stored_restore(old) if can_restore else dict(NO_RESTORE)
+                after = {'search_scope': row.search_scope, 'can_restore': can_restore, 'restore': levels}
+                before = {'search_scope': old['search_scope'], 'can_restore': old['can_restore'], 'restore': stored_restore(old)} if old else None
                 if before == after:
                     continue
-                if old:
-                    conn.execute('''UPDATE auth.team_position_policy SET search_scope=%s,can_restore=%s
-                        WHERE team_id=%s AND position_code=%s''',
-                        (row.search_scope, can_restore, body.team_id, row.position_code))
-                else:
-                    conn.execute('''INSERT INTO auth.team_position_policy(team_id,position_code,search_scope,can_restore)
-                        VALUES (%s,%s,%s,%s)''', (body.team_id, row.position_code, row.search_scope, can_restore))
+                write_policy(conn, body.team_id, row.position_code, row.search_scope, can_restore, levels, bool(old))
                 log(conn, actor['user_id'], 'TEAM_POSITION_POLICY_SAVED', body.reason,
                     {'entity': 'team_position_policy', 'team_id': body.team_id, 'position_code': row.position_code, 'values': before},
                     {'entity': 'team_position_policy', 'team_id': body.team_id, 'position_code': row.position_code, 'values': after})

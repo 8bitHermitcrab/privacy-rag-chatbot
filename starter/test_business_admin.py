@@ -387,6 +387,39 @@ class BusinessTest(unittest.TestCase):
         result=b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='팀장',search_scope='NONE',version=row()['updated_at'].isoformat())],reason='동일 값 재저장 검증'),self.request())
         self.assertEqual(result['saved'],0)
 
+    def test_20b_restore_levels_by_kind(self):
+        team='restore-kind-'+self.suffix
+        self.conn.execute('INSERT INTO auth.team_info(team_id,team_name) VALUES (%s,%s)',(team,team))
+        def row(pos='팀장'):return self.conn.execute("SELECT * FROM auth.team_position_policy WHERE team_id=%s AND position_code=%s",(team,pos)).fetchone()
+        b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='팀장',search_scope='TEAM',restore={'person':'FULL','phone':'PARTIAL','rrn':'PARTIAL'})],reason='종류별 복원 저장'),self.request())
+        r=row();self.assertTrue(r['can_restore'])
+        self.assertEqual((r['restore_person'],r['restore_phone'],r['restore_rrn'],r['restore_card']),('FULL','PARTIAL','PARTIAL','NONE'))
+        self.assertEqual(b.restore_of(r)['person'],'FULL')
+        # 주민번호·계좌·카드 전체 복원, 검색 불가 + 복원, 모르는 항목은 거부
+        for bad in ({'rrn':'FULL'},{'card':'FULL'},{'person':'ALL'},{'name':'FULL'}):
+            with self.assertRaises(HTTPException) as error:
+                b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='팀장',search_scope='TEAM',restore=bad,version=r['updated_at'].isoformat())],reason='잘못된 복원 차단'),self.request())
+            self.assertEqual(error.exception.status_code,400)
+        with self.assertRaises(HTTPException):
+            b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='팀장',search_scope='NONE',restore={'person':'FULL'},version=r['updated_at'].isoformat())],reason='검색 불가 복원 차단'),self.request())
+        # 복원 항목을 보내지 않으면 보존, 검색 불가로 바꾸면 모두 끔
+        b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='팀장',search_scope='OWN',version=r['updated_at'].isoformat())],reason='복원 항목 보존'),self.request())
+        self.assertEqual(row()['restore_person'],'FULL')
+        b.save_team_policies(b.TeamPolicyBatch(team_id=team,policies=[b.TeamPolicyRow(position_code='팀장',search_scope='NONE',version=row()['updated_at'].isoformat())],reason='검색 불가로 복원 해제'),self.request())
+        r=row();self.assertFalse(r['can_restore'])
+        self.assertTrue(all(r['restore_'+k]=='NONE' for k in b.RESTORE_KINDS))
+        log=self.conn.execute("SELECT after_value FROM auth.permission_change_log WHERE after_value->>'team_id'=%s ORDER BY log_id DESC LIMIT 1",(team,)).fetchone()['after_value']
+        self.assertEqual(log['values']['restore']['person'],'NONE')
+        # 단건 저장도 같은 규칙. 모두 안 함이면 전체 스위치도 꺼짐
+        b.save_policy(b.TeamPositionPolicy(team_id=team,position_code='사원',search_scope='OWN',restore={'phone':'PARTIAL'},reason='단건 복원 저장'),self.request())
+        self.assertTrue(row('사원')['can_restore']);self.assertEqual(row('사원')['restore_phone'],'PARTIAL')
+        # DB 제약: 전체 스위치가 꺼져 있으면 복원 항목을 켤 수 없음, 주민번호 FULL 불가
+        import psycopg
+        for sql in ("UPDATE auth.team_position_policy SET can_restore=false WHERE team_id=%s AND position_code='사원'",
+                    "UPDATE auth.team_position_policy SET restore_rrn='FULL' WHERE team_id=%s AND position_code='사원'"):
+            with self.assertRaises(psycopg.errors.CheckViolation):
+                with self.conn.transaction():self.conn.execute(sql,(team,))
+
     def test_21_batch_requires_manager(self):
         emp='batch-staff-'+self.suffix
         self.conn.execute('INSERT INTO auth.employee_info(employee_id) VALUES (%s)',(emp,))

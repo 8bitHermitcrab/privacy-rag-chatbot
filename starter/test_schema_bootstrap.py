@@ -52,7 +52,7 @@ class SchemaBootstrapTest(unittest.TestCase):
         with patch('dotenv.dotenv_values',return_value=env):prepare_existing_database()
         self.assertEqual(self.admin.execute("SELECT count(*) FROM pg_roles WHERE rolname IN ('rag_user','vault_user','migration_user') AND rolcanlogin").fetchone()[0],3)
         e=make('migration_user')
-        try:self.assertEqual(migrate(engine=e),'0004')
+        try:self.assertEqual(migrate(engine=e),'0005')
         finally:e.dispose()
 
     def test_equivalent_latest_schema_without_version_is_adopted(self):
@@ -84,7 +84,7 @@ class SchemaBootstrapTest(unittest.TestCase):
             with patch('dotenv.dotenv_values',return_value=env):prepare_existing_database()
             with e.connect() as c:
                 head=c.exec_driver_sql('SELECT version_num FROM public.alembic_version').scalar()
-                self.assertEqual(head,'0004')
+                self.assertEqual(head,'0005')
                 self.assertFalse(differences(capture(c),contract(head+'_contract.json')))
         finally:e.dispose()
 
@@ -93,8 +93,8 @@ class SchemaBootstrapTest(unittest.TestCase):
         with patch('dotenv.dotenv_values',return_value=env):prepare_existing_database()
         e=make('migration_user')
         try:
-            self.assertEqual(migrate(engine=e),'0004')
-            self.assertEqual(migrate(engine=e,check=True),'0004')
+            self.assertEqual(migrate(engine=e),'0005')
+            self.assertEqual(migrate(engine=e,check=True),'0005')
         finally:e.dispose()
         with patch('dotenv.dotenv_values',return_value=env):prepare_existing_database()
         e=make()
@@ -122,7 +122,7 @@ class SchemaBootstrapTest(unittest.TestCase):
         finally:e.dispose()
         with patch('dotenv.dotenv_values',return_value=env):prepare_existing_database()
         e=make('migration_user')
-        try:self.assertEqual(migrate(engine=e),'0004')
+        try:self.assertEqual(migrate(engine=e),'0005')
         finally:e.dispose()
         e=make()
         try:
@@ -208,7 +208,7 @@ class SchemaBootstrapTest(unittest.TestCase):
             finally:e.dispose()
         with patch('dotenv.dotenv_values',return_value=env),ThreadPoolExecutor(max_workers=2) as executor:
             futures=[executor.submit(install) for _ in range(2)]
-            self.assertEqual([f.result(timeout=30) for f in futures],['0004','0004'])
+            self.assertEqual([f.result(timeout=30) for f in futures],['0005','0005'])
 
 
     def test_wrong_existing_password_is_not_reset(self):

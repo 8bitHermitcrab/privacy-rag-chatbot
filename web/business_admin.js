@@ -25,7 +25,7 @@ const PERSON_ACTION_TEXT={link:'기존 PID에 연결',create:'새 PID 생성',di
 // 화면에는 "검색 범위 본인 담당 문서 → 소속 팀 문서"처럼 바뀐 항목만 보여 줍니다. DB 기록 자체는 바꾸지 않습니다.
 const LOG_FIELD={search_scope:'검색 범위',can_restore:'실명 복원',team_id:'소속 팀',position_code:'직책',verification_status:'확인 상태',
   team_name:'팀 이름',is_active:'사용 여부',role_code:'역할',status:'계정 상태',employee_id:'직원(사번)',owner_employee_id:'담당 직원',
-  metadata_status:'문서 상태',login_id:'아이디',invited:'발급 방식'};
+  metadata_status:'문서 상태',login_id:'아이디',invited:'발급 방식',restore:'복원 항목'};
 const LOG_VALUE={
   search_scope:{OWN:'본인 담당 문서',TEAM:'소속 팀 문서',NONE:'검색 불가'},
   can_restore:{true:'허용',false:'불가'},is_active:{true:'사용',false:'미사용'},invited:{true:'회원 초대',false:'직접 발급'},
@@ -37,6 +37,7 @@ function logTeam(id,d){const t=(d?.teams||[]).find(x=>x.team_id===id);return t?`
 function logValue(key,value,d){
   if(value===null||value===undefined||value==='')return '없음';
   if(key==='team_id')return logTeam(value,d);
+  if(key==='restore'&&typeof value==='object')return restoreSummary(value)||'없음';
   return LOG_VALUE[key]?.[String(value)]??String(value);
 }
 const LOG_ORDER=Object.keys(LOG_FIELD);   // 항목은 LOG_FIELD에 적은 순서로 보여 줌 (DB는 알파벳순으로 저장)
@@ -339,20 +340,27 @@ policyChips=function(p){const positions=p.positions||[];return `<span class="pch
 policyText=function(p){return `직책별 정책 ${(p.positions||[]).length}개 · 금융 문서·개별 복원 항목은 미연결`};
 let teamPolicyEditor=null;
 const TEAM_SCOPE_LABEL={TEAM:'소속 팀 전체 문서',OWN:'본인 담당 문서',NONE:'검색 불가'};
+// 개인정보 7종 복원 수준. 마킹은 항상 7종 모두 하며, 여기서는 화면에 되돌려 보여줄 범위만 정합니다.
+const RESTORE_KINDS=['person','phone','email','address','rrn','account','card'];
+const RESTORE_KIND_LABEL={person:'이름',phone:'전화번호',email:'이메일',address:'주소',rrn:'주민번호',account:'계좌',card:'카드'};
+const RESTORE_PARTIAL_ONLY=['rrn','account','card'];
+const RESTORE_LEVEL_LABEL={NONE:'안 함',PARTIAL:'일부',FULL:'전체'};
+function restoreLevels(p){const out={};for(const k of RESTORE_KINDS)out[k]=(p&&p.can_restore&&p.search_scope!=='NONE'&&p['restore_'+k])||'NONE';return out}
+function restoreSummary(levels){return RESTORE_KINDS.filter(k=>levels?.[k]&&levels[k]!=='NONE').map(k=>RESTORE_KIND_LABEL[k]+' '+RESTORE_LEVEL_LABEL[levels[k]]).join(' · ')}
 function teamPolicyRowsFromData(id){
   const stored=LIVE_DB.policies.filter(p=>p.team_id===id);
   const positions=[...new Set(['팀장','과장','사원',...stored.map(p=>p.position_code),...LIVE_DB.employees.filter(e=>e.team_id===id&&e.position_code).map(e=>e.position_code)])];
   const order=['팀장','부장','차장','과장','대리','사원'];
   positions.sort((a,b)=>(order.includes(a)?order.indexOf(a):100)-(order.includes(b)?order.indexOf(b):100)||a.localeCompare(b,'ko'));
-  return positions.map((position,index)=>{const old=stored.find(p=>p.position_code===position);return{key:index,position,scope:old?.search_scope||'NONE',version:old?.updated_at||null,existing:!!old,fixed:true,originalScope:old?.search_scope||null}});
+  return positions.map((position,index)=>{const old=stored.find(p=>p.position_code===position);const restore=restoreLevels(old);return{key:index,position,scope:old?.search_scope||'NONE',version:old?.updated_at||null,existing:!!old,fixed:true,originalScope:old?.search_scope||null,restore,originalRestore:JSON.stringify(restore)}});
 }
 function teamPolicyRowMarkup(row,id){
   const count=LIVE_DB.employees.filter(e=>e.team_id===id&&e.position_code===row.position).length;
   const title=row.fixed?`<strong>${esc(row.position)}</strong><input type="hidden" data-tp-position value="${esc(row.position)}">`:`<input type="text" data-tp-position aria-label="새 직책 이름" maxlength="100" placeholder="직책 이름 · 예: 대리" value="${esc(row.position)}">`;
-  return `<fieldset class="tp-row" data-tp-row="${row.key}"><div class="tp-head">${title}<small>${count}명 · ${row.existing?'저장된 정책':'미설정'}</small>${row.existing?'<span class="ev" title="검색을 막으려면 검색 불가를 선택하세요">등록됨</span>':`<button type="button" class="linkBtn" data-tp-remove="${row.key}" aria-label="${esc(row.position||'새 직책')} 행 제거">제거</button>`}</div><label class="lbl" for="tpScope${row.key}">검색 범위</label><select id="tpScope${row.key}" data-tp-scope aria-label="${esc(row.position||'새 직책')} 검색 범위">${Object.entries(TEAM_SCOPE_LABEL).map(([value,label])=>`<option value="${value}"${row.scope===value?' selected':''}>${label}</option>`).join('')}</select></fieldset>`;
+  return `<fieldset class="tp-row" data-tp-row="${row.key}"><div class="tp-head">${title}<small>${count}명 · ${row.existing?'저장된 정책':'미설정'}</small>${row.existing?'<span class="ev" title="검색을 막으려면 검색 불가를 선택하세요">등록됨</span>':`<button type="button" class="linkBtn" data-tp-remove="${row.key}" aria-label="${esc(row.position||'새 직책')} 행 제거">제거</button>`}</div><label class="lbl" for="tpScope${row.key}">검색 범위</label><select id="tpScope${row.key}" data-tp-scope aria-label="${esc(row.position||'새 직책')} 검색 범위">${Object.entries(TEAM_SCOPE_LABEL).map(([value,label])=>`<option value="${value}"${row.scope===value?' selected':''}>${label}</option>`).join('')}</select><div class="lbl">개인정보 복원 <small>(검색 불가면 모두 안 함)</small></div><div class="tp-restore" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:6px">${RESTORE_KINDS.map(k=>{const level=(row.restore||{})[k]||'NONE',levels=RESTORE_PARTIAL_ONLY.includes(k)?['NONE','PARTIAL']:['NONE','PARTIAL','FULL'];return `<label style="display:flex;flex-direction:column;font-size:12px;gap:2px">${RESTORE_KIND_LABEL[k]}<select data-tp-restore="${k}" aria-label="${esc(row.position||'새 직책')} ${RESTORE_KIND_LABEL[k]} 복원"${row.scope==='NONE'?' disabled':''}>${levels.map(v=>`<option value="${v}"${level===v?' selected':''}>${RESTORE_LEVEL_LABEL[v]}</option>`).join('')}</select></label>`}).join('')}</div></fieldset>`;
 }
 function collectTeamPolicyRows(editor){
-  return [...$('tpRows').querySelectorAll('[data-tp-row]')].map(element=>{const old=editor.rows.find(r=>r.key===Number(element.dataset.tpRow));return{...old,position:element.querySelector('[data-tp-position]').value.trim(),scope:element.querySelector('[data-tp-scope]').value}});
+  return [...$('tpRows').querySelectorAll('[data-tp-row]')].map(element=>{const old=editor.rows.find(r=>r.key===Number(element.dataset.tpRow)),scope=element.querySelector('[data-tp-scope]').value,restore={};for(const k of RESTORE_KINDS)restore[k]=scope==='NONE'?'NONE':(element.querySelector(`[data-tp-restore="${k}"]`)?.value||'NONE');return{...old,position:element.querySelector('[data-tp-position]').value.trim(),scope,restore}});
 }
 function validateTeamPolicyRows(rows,reason){
   if(!rows.length)return '직책을 한 개 이상 추가하세요.';
@@ -360,6 +368,7 @@ function validateTeamPolicyRows(rows,reason){
   if(rows.some(r=>!r.position||r.position.length>100))return '직책 이름을 1~100자로 입력하세요.';
   if(new Set(rows.map(r=>r.position)).size!==rows.length)return '같은 직책이 두 번 있습니다. 직책 이름을 확인하세요.';
   if(rows.some(r=>!Object.hasOwn(TEAM_SCOPE_LABEL,r.scope)))return '검색 범위를 확인하세요.';
+  if(rows.some(r=>RESTORE_PARTIAL_ONLY.some(k=>r.restore?.[k]==='FULL')))return '주민번호·계좌·카드는 일부 복원까지만 허용합니다.';
   if(reason.trim().length<3)return '변경 사유를 3자 이상 입력하세요.';
   return '';
 }
@@ -368,19 +377,20 @@ editTeamPolicy=function(id){
   if(!$('sheet').classList.contains('open'))sheetReturn=document.activeElement;
   const rows=teamPolicyRowsFromData(id);
   const editor={teamId:id,rows,nextKey:rows.length,saving:false};teamPolicyEditor=editor;
-  $('sheetBody').innerHTML=`<h3 id="sheetTitle">${esc(team.team_name)} · 팀 권한 설정<button class="x" type="button" data-sheet-close aria-label="닫기">×</button></h3><p class="fhint">각 직책의 검색 범위를 따로 설정합니다. 직원 정보의 소속 팀·직책과 일치하는 정책이 적용되며, 미설정 직책은 검색할 수 없습니다.</p>${team.is_active?'':'<div class="warnBox">현재 미사용 팀입니다. 정책을 저장해도 팀을 사용 상태로 바꾸기 전에는 검색할 수 없습니다.</div>'}<form id="teamPolicyForm" class="pform"><div id="tpRows">${rows.map(row=>teamPolicyRowMarkup(row,id)).join('')}</div><button type="button" class="ghostBtn" id="tpAdd">＋ 직책 추가</button><div><label class="lbl" for="tpReason">변경 사유 (필수)</label><textarea id="tpReason" rows="2" maxlength="500" placeholder="예: 팀 내 직책별 업무 범위 설정"></textarea></div><p class="fhint">검색은 확정된 직원·사용 중인 팀·확정된 문서에 한해 적용됩니다. 개인정보 복원 기능은 미연결이며, 검색 불가로 바꾸면 해당 직책의 복원 허용 설정도 꺼집니다.</p><div id="tpError" class="ferr" role="alert"></div></form><div class="sheetActs"><button type="button" class="ghostBtn" data-sheet-close>취소</button><button type="submit" class="primaryBtn" form="teamPolicyForm" id="tpSave">직책별 권한 저장</button></div>`;
-  $('tpAdd').onclick=()=>{editor.rows=collectTeamPolicyRows(editor);if(editor.rows.length>=100)return toast('직책은 한 번에 100개까지 설정할 수 있습니다.');const row={key:editor.nextKey++,position:'',scope:'NONE',version:null,existing:false,fixed:false,originalScope:null};editor.rows.push(row);$('tpRows').insertAdjacentHTML('beforeend',teamPolicyRowMarkup(row,id));$('tpRows').querySelector(`[data-tp-row="${row.key}"] [data-tp-position]`).focus()};
+  $('sheetBody').innerHTML=`<h3 id="sheetTitle">${esc(team.team_name)} · 팀 권한 설정<button class="x" type="button" data-sheet-close aria-label="닫기">×</button></h3><p class="fhint">각 직책의 검색 범위를 따로 설정합니다. 직원 정보의 소속 팀·직책과 일치하는 정책이 적용되며, 미설정 직책은 검색할 수 없습니다.</p>${team.is_active?'':'<div class="warnBox">현재 미사용 팀입니다. 정책을 저장해도 팀을 사용 상태로 바꾸기 전에는 검색할 수 없습니다.</div>'}<form id="teamPolicyForm" class="pform"><div id="tpRows">${rows.map(row=>teamPolicyRowMarkup(row,id)).join('')}</div><button type="button" class="ghostBtn" id="tpAdd">＋ 직책 추가</button><div><label class="lbl" for="tpReason">변경 사유 (필수)</label><textarea id="tpReason" rows="2" maxlength="500" placeholder="예: 팀 내 직책별 업무 범위 설정"></textarea></div><p class="fhint">검색은 확정된 직원·사용 중인 팀·확정된 문서에 한해 적용됩니다. 복원 항목은 저장되지만 챗봇 화면의 실제 복원은 아직 연결되지 않았습니다. 주민번호·계좌·카드는 일부까지만 허용하며, 검색 불가로 바꾸면 해당 직책의 복원 설정도 모두 꺼집니다.</p><div id="tpError" class="ferr" role="alert"></div></form><div class="sheetActs"><button type="button" class="ghostBtn" data-sheet-close>취소</button><button type="submit" class="primaryBtn" form="teamPolicyForm" id="tpSave">직책별 권한 저장</button></div>`;
+  $('tpAdd').onclick=()=>{editor.rows=collectTeamPolicyRows(editor);if(editor.rows.length>=100)return toast('직책은 한 번에 100개까지 설정할 수 있습니다.');const row={key:editor.nextKey++,position:'',scope:'NONE',version:null,existing:false,fixed:false,originalScope:null,restore:restoreLevels(null),originalRestore:JSON.stringify(restoreLevels(null))};editor.rows.push(row);$('tpRows').insertAdjacentHTML('beforeend',teamPolicyRowMarkup(row,id));$('tpRows').querySelector(`[data-tp-row="${row.key}"] [data-tp-position]`).focus()};
+  $('tpRows').onchange=e=>{const sel=e.target.closest('[data-tp-scope]');if(!sel)return;const box=sel.closest('[data-tp-row]');for(const r of box.querySelectorAll('[data-tp-restore]')){r.disabled=sel.value==='NONE';if(sel.value==='NONE')r.value='NONE'}};
   $('tpRows').onclick=e=>{const b=e.target.closest('[data-tp-remove]');if(!b||editor.saving)return;editor.rows=collectTeamPolicyRows(editor).filter(r=>r.key!==Number(b.dataset.tpRemove));b.closest('[data-tp-row]').remove()};
   $('teamPolicyForm').onsubmit=async e=>{
     e.preventDefault();if(editor.saving||LIVE_BUSY)return;
     editor.rows=collectTeamPolicyRows(editor);const reason=$('tpReason').value.trim(),error=validateTeamPolicyRows(editor.rows,reason);
     if(error){$('tpError').textContent=error;return}
-    const changed=editor.rows.filter(r=>!r.existing||r.scope!==r.originalScope);
+    const changed=editor.rows.filter(r=>!r.existing||r.scope!==r.originalScope||JSON.stringify(r.restore)!==r.originalRestore);
     if(!changed.length){$('tpError').textContent='변경한 권한이 없습니다.';return}
     editor.saving=true;LIVE_BUSY=true;let committed=false;
     const controls=[...$('sheetBody').querySelectorAll('button,input,select,textarea')];controls.forEach(n=>n.disabled=true);$('tpError').textContent='저장 중입니다…';
     try{
-      const result=await liveApi('/api/admin/policies/batch',{team_id:id,policies:changed.map(r=>({position_code:r.position,search_scope:r.scope,version:r.version})),reason});
+      const result=await liveApi('/api/admin/policies/batch',{team_id:id,policies:changed.map(r=>({position_code:r.position,search_scope:r.scope,restore:r.restore,version:r.version})),reason});
       committed=true;const wasOpen=$('sheet').classList.contains('open');await liveRefresh();
       if(wasOpen&&teamPolicyEditor===editor)editTeamPolicy(id);
       toast(`${result.saved}개 직책 정책을 저장했습니다. 해당 팀·직책의 다음 검색부터 적용됩니다.`);
@@ -393,7 +403,7 @@ editTeamPolicy=function(id){
 openTeamSheet=function(id){
   sheetReturn=document.activeElement;const team=LIVE_DB.teams.find(t=>t.team_id===id);if(!team)return;
   const rows=LIVE_DB.policies.filter(p=>p.team_id===id);
-  $('sheetBody').innerHTML=`<h3 id="sheetTitle">🏢 ${esc(team.team_name)}<button class="x" type="button" data-sheet-close aria-label="닫기">×</button></h3><dl class="dl"><dt>팀 코드</dt><dd>${esc(id)}</dd><dt>사용 여부</dt><dd>${team.is_active?'사용':'미사용'}</dd><dt>직원 수</dt><dd>${EMPLOYEES.filter(e=>e.team_id===id).length}명</dd></dl><div><h4>저장된 직책별 정책</h4><table class="roleGrid"><thead><tr><th>직책</th><th>검색 범위</th><th>복원 설정</th></tr></thead><tbody>${rows.map(p=>`<tr><td>${esc(p.position_code)}</td><td>${esc(p.search_scope)}</td><td>${p.can_restore?'허용(기능 미연결)':'거부'}</td></tr>`).join('')||'<tr><td colspan="3">등록된 정책 없음 · 검색 차단</td></tr>'}</tbody></table></div><p>권한 설정에서 팀장·과장·사원 등 직책별 검색 범위를 수정할 수 있습니다. 정책이 없는 직책은 검색이 차단됩니다.</p><div class="sheetActs"><button class="ghostBtn" data-sheet-close>닫기</button><button class="primaryBtn" id="sheetPolicy">이 팀 권한 설정</button></div>`;
+  $('sheetBody').innerHTML=`<h3 id="sheetTitle">🏢 ${esc(team.team_name)}<button class="x" type="button" data-sheet-close aria-label="닫기">×</button></h3><dl class="dl"><dt>팀 코드</dt><dd>${esc(id)}</dd><dt>사용 여부</dt><dd>${team.is_active?'사용':'미사용'}</dd><dt>직원 수</dt><dd>${EMPLOYEES.filter(e=>e.team_id===id).length}명</dd></dl><div><h4>저장된 직책별 정책</h4><table class="roleGrid"><thead><tr><th>직책</th><th>검색 범위</th><th>복원 설정</th></tr></thead><tbody>${rows.map(p=>`<tr><td>${esc(p.position_code)}</td><td>${esc(p.search_scope)}</td><td>${esc(restoreSummary(restoreLevels(p))||'안 함')}${p.can_restore?' (기능 미연결)':''}</td></tr>`).join('')||'<tr><td colspan="3">등록된 정책 없음 · 검색 차단</td></tr>'}</tbody></table></div><p>권한 설정에서 팀장·과장·사원 등 직책별 검색 범위를 수정할 수 있습니다. 정책이 없는 직책은 검색이 차단됩니다.</p><div class="sheetActs"><button class="ghostBtn" data-sheet-close>닫기</button><button class="primaryBtn" id="sheetPolicy">이 팀 권한 설정</button></div>`;
   $('sheetPolicy').onclick=()=>editTeamPolicy(id);$('sheet').classList.add('open');$('sheet').setAttribute('aria-hidden','false');$('sheetBody').querySelector('.x').focus();
 };
 createTeam=async function(){
