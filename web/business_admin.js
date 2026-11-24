@@ -91,7 +91,7 @@ function applyLiveData(d){
   }
   AUDIT.unsort=true;
   for(const m of MEMBERS)if(!m.history.length)m.history.push({at:m.joined,text:'계정 생성'});
-  MOCK.roles=d.roles.map((r,i)=>({name:r.role_name,code:r.role_code,count:MEMBERS.filter(m=>m.role===r.role_code).length,color:['#2F6BFF','#8B5CF6','#21A56B'][i%3]}));
+  MOCK.roles=d.roles.map((r,i)=>({name:r.role_name,code:r.role_code,count:MEMBERS.filter(m=>m.role===r.role_code).length,color:['#A84A12','#E8892B','#5B8C5A'][i%3]}));  // 어흥이 테마 색 (진한 주황·주황·초록)
 }
 async function liveRefresh(){applyLiveData(await liveApi('/api/admin/data'));route()}
 async function liveSave(kind,key,values,reason,version){
@@ -102,7 +102,9 @@ async function liveSave(kind,key,values,reason,version){
 
 drawKpis=function(){
   const active=MEMBERS.filter(m=>m.db.status==='ACTIVE').length;
-  $('kpis').innerHTML=[['k-blue',ICON.users,'전체 회원',num(MEMBERS.length)+'<small>명</small>','#members'],['k-orange',ICON.wait,'승인 대기','미연결','#members'],['k-green',ICON.shield,'활성 계정',num(active)+'<small>명</small>','#members'],['k-purple',ICON.doc,'검색 요청 수','미집계','#activity']]
+  // '승인 대기'는 가입 승인 기능이 없어 집계할 수 없으므로, 화면에서 계산하는 '점검 필요' 항목 수를 보여 줍니다.
+  const need=dataChecks().filter(c=>c.level!=='info'&&c.n).length;
+  $('kpis').innerHTML=[['k-blue',ICON.users,'전체 회원',num(MEMBERS.length)+'<small>명</small>','#members'],['k-orange',ICON.wait,'점검 필요',need?num(need)+'<small>건</small>':'없음','#settings'],['k-green',ICON.shield,'활성 계정',num(active)+'<small>명</small>','#members'],['k-purple',ICON.doc,'검색 요청 수','미집계','#activity']]
     .map(([cls,icon,label,value,href])=>`<div class="kpi ${cls}"><span class="ic" aria-hidden="true">${icon||''}</span><div><div class="l">${label}</div><div class="n">${value}</div></div><a class="more" href="${href}">자세히 보기 ›</a></div>`).join('');
 };
 drawTables=function(){
@@ -123,15 +125,41 @@ effective=function(m,over={}){
 };
 canDoList=function(e,team){return [[e.scope!=='NONE',e.scope==='TEAM'?`${team}의 확정 문서 검색`:e.scope==='OWN'?'본인 담당 확정 문서 검색':'현재 검색 권한 없음'],[false,'금융 문서별 세부 정책은 연결 보류'],[false,'실명 복원 기능은 연결되지 않음'],[e.manage,e.manage?'계정·팀 관리 권한 있음':'계정 관리 권한 없음']]};
 lockReason=function(m){return m.db.status==='ACTIVE'?'':'현재 '+STATUS[m.status].label+' 상태입니다.'};
-actionsFor=function(m){const a=[['detail','상세정보 보기'],['perm','권한 수정']];if(m.login!==LIVE_ME.login_id){if(m.db.status==='ACTIVE')a.push(['suspend','계정 정지',true]);if(m.db.status==='LOCKED')a.push(['resume','정지 해제'])}return a};
+// 계정 상태 변경: 정지(LOCKED)·퇴사(RETIRED)·다시 사용(ACTIVE). DB가 허용하는 상태값만 씁니다.
+// 일반 직원 계정은 DB 규칙상 직원 연결을 끊을 수 없어서, '연결 해제' 대신 퇴사 처리로 로그인을 막습니다.
+const ACCOUNT_ACTION={
+  suspend:{to:'LOCKED',title:'계정을 정지할까요?',yes:'정지',danger:true,text:'정지하면 이 계정으로 로그인할 수 없어요. 나중에 정지 해제로 되돌릴 수 있어요.'},
+  retire:{to:'RETIRED',title:'퇴사 처리할까요?',yes:'퇴사 처리',danger:true,text:'퇴사 처리하면 이 계정으로 로그인할 수 없어요. 계정과 직원 정보는 지우지 않고 이력으로 남겨요.'},
+  resume:{to:'ACTIVE',title:'계정을 다시 사용할까요?',yes:'다시 사용',danger:false,text:'계정을 사용 상태로 되돌려 다시 로그인할 수 있게 해요. 검색 범위는 소속 팀·직책 정책을 따라요.'}};
+actionsFor=function(m){
+  const a=[['detail','상세정보 보기'],['perm','권한 수정']],s=m.db.status;
+  if(m.login!==LIVE_ME.login_id){
+    if(s==='ACTIVE')a.push(['suspend','계정 정지',true]);
+    if(s==='LOCKED')a.push(['resume','정지 해제']);
+    if(['DORMANT','RETIRED'].includes(s))a.push(['resume',s==='RETIRED'?'퇴사 취소 (다시 사용)':'휴면 해제']);
+    if(s!=='RETIRED')a.push(['retire','퇴사 처리 (계정 사용 중지)',true]);
+  }
+  return a;
+};
 act=async function(kind,id){
   const m=MEMBERS.find(x=>x.id===id);if(!m)return;
   try{
     if(kind==='detail')return openDetail(m);
     if(kind==='perm'){setMemberView('perm');return openPermEdit(m)}
-    if(!['suspend','resume'].includes(kind))return unlinked('가입 승인·신원 대조 절차는 DB와 의미를 맞춘 뒤 연결합니다.');
-    const r=await ask({title:kind==='suspend'?'계정을 정지할까요?':'정지를 해제할까요?',yes:'저장',danger:kind==='suspend',text:`<b>${esc(m.login)}</b> 계정의 실제 DB 상태를 변경합니다.`,fields:reasonField('변경 사유'),check:v=>(v.reason||'').trim().length>=3?'':'사유를 3자 이상 적어 주세요.'});
-    if(!r)return;await liveSave('users',m.id,{status:kind==='suspend'?'LOCKED':'ACTIVE'},r.reason,m.db.updated_at);closeDetail();toast('DB에 저장했습니다.');
+    const spec=ACCOUNT_ACTION[kind];
+    if(!spec)return unlinked('가입 승인·신원 대조 절차는 DB와 의미를 맞춘 뒤 연결합니다.');
+    if(m.login===LIVE_ME.login_id)return toast('본인 계정의 상태는 바꿀 수 없어요.');
+    const docs=m.employee_id?ownedDocs(m.employee_id):[];
+    const docNote=kind==='retire'&&docs.length?`<br>⚠️ 이 직원(${esc(m.employee_id)})이 담당한 문서 <b>${docs.length}건</b>은 그대로 남아 같은 팀 직원은 계속 검색할 수 있어요. 필요하면 처리 후 문서 관리에서 담당자를 바꿔 주세요.`:'';
+    const r=await ask({title:spec.title,yes:spec.yes,danger:spec.danger,
+      text:`<b>${esc(m.login)}</b> 계정 · 현재 <b>${esc(STATUS[m.status]?.label||m.db.status)}</b><br>${spec.text}${docNote}`,
+      fields:reasonField(kind==='retire'?'예: 2026-11-30 퇴사':'변경 사유'),check:v=>(v.reason||'').trim().length>=3?'':'사유를 3자 이상 적어 주세요. 활동 기록에 남아요.'});
+    if(!r)return;
+    await liveSave('users',m.id,{status:spec.to},r.reason,m.db.updated_at);closeDetail();toast('DB에 저장했습니다.');
+    if(kind==='retire'&&docs.length){
+      const go=await ask({title:'담당 문서 정리',yes:'문서 관리로 이동',text:`퇴사 처리한 직원이 담당한 문서 <b>${docs.length}건</b>을 문서 관리에서 모아 보여 드릴게요.`});
+      if(go)openDocuments({q:m.employee_id});
+    }
   }catch(e){toast(e.message)}
 };
 // 회원 초대: 관리자가 사번만 입력 → 아이디=사번, 일반 직원(STAFF) 계정 발급. 임시 비밀번호는 한 번만 보여 주고 화면에서 지웁니다.
@@ -182,6 +210,17 @@ const originalDrawEmpCard=drawEmpCard;
 drawEmpCard=function(){originalDrawEmpCard();const card=$('tCard');if(!card)return;for(const li of card.querySelectorAll('li')){const key=li.firstElementChild?.textContent||'';if(/문서|최초|최근|근거/.test(key)&&li.lastElementChild)li.lastElementChild.textContent='미연결'}
   // 직원 카드의 [직원 정보 수정] 버튼
   const e=EMPLOYEES.find(x=>x.id===tState.sel);
+  // '근거 문서'(문서 속 인물 대조, 미연결) 자리에 실제 '담당 문서' 수를 보여 주고 문서 관리로 연결합니다.
+  if(e){
+    for(const li of card.querySelectorAll('li')){
+      const key=li.firstElementChild?.textContent||'';
+      if(key==='근거 문서'){const docs=ownedDocs(e.id),conf=docs.filter(d=>d.metadata_status==='CONFIRMED').length;li.firstElementChild.textContent='담당 문서';
+        li.lastElementChild.innerHTML=docs.length?`<button type="button" class="linkBtn" data-emp-docs>${docs.length}건 (확정 ${conf}건) ›</button>`:'없음';
+        li.querySelector('[data-emp-docs]')?.addEventListener('click',ev=>{ev.stopPropagation();openDocuments({q:e.id})})}
+      if(key==='문서 날짜')li.remove();
+    }
+    const un=card.querySelector('[data-unlink]');if(un){un.textContent='계정 퇴사 처리';un.title='일반 계정은 직원 연결을 끊을 수 없어 계정 사용을 중지합니다'}
+  }
   if(e&&e.db&&!card.querySelector('[data-emp-edit]')){const row=document.createElement('div');row.className='btnRow';row.style.margin='4px 0 12px';
     row.innerHTML='<button type="button" class="ghostBtn" data-emp-edit>✎ 직원 정보 수정</button>';
     (card.querySelector('.ctr')||card.querySelector('h3'))?.after(row);row.firstElementChild.onclick=()=>openEmployeeForm(e)}
@@ -212,8 +251,32 @@ function employeeFields(e){
     +`<label for="fEmpTeam">소속 팀</label><select id="fEmpTeam" name="team_id"><option value="">팀 없음</option>${teams.map(t=>`<option value="${esc(t.team_id)}"${t.team_id===team?' selected':''}>${esc(t.team_name)} (${esc(t.team_id)})${t.is_active?'':' · 미사용'}</option>`).join('')}</select>`
     +`<label for="fEmpPos">직책</label><select id="fEmpPos" name="position_code">${positionOptions(team,db.position_code||'')}</select><p class="fhint" id="fEmpPosHint"></p>`
     +`<label for="fEmpStatus">확인 상태</label><select id="fEmpStatus" name="verification_status">${Object.entries(EMP_DB_STATUS).map(([k,v])=>`<option value="${k}"${k===status?' selected':''}>${v}</option>`).join('')}</select>`
+    +`<div class="warnBox" id="fEmpImpact" style="margin:8px 0 10px"></div>`
     +reasonField(e?'예: 인사팀 확인 후 소속 팀 변경':'예: 신규 입사자 등록');
 }
+// ── 소속 팀·직책·확인 상태를 바꿀 때의 영향 (allowed_documents 와 같은 규칙으로 계산) ──
+const SCOPE_TEXT={OWN:'본인 담당 문서',TEAM:'소속 팀 문서',NONE:'검색 불가'};
+const ownedDocs=empId=>(LIVE_DB?.documents||[]).filter(d=>d.owner_employee_id===empId);
+function scopeFor(teamId,pos,status){
+  if(status!=='CONFIRMED'||!teamId||!(LIVE_DB?.teams||[]).find(t=>t.team_id===teamId)?.is_active)return 'NONE';
+  return livePolicy(teamId,pos)?.search_scope||'NONE';
+}
+function employeeImpact(e,teamId,pos,status){
+  const before=e?scopeFor(e.db.team_id,e.db.position_code,e.db.verification_status):'NONE',after=scopeFor(teamId,pos,status);
+  const acct=e&&linkedMember(e),lines=[];
+  lines.push(`🔍 검색 범위: ${e?`${SCOPE_TEXT[before]} → `:''}<b>${SCOPE_TEXT[after]}</b> ${acct?`(계정 <b>${esc(acct.login)}</b>에 바로 적용)`:'(연결된 계정 없음)'}`);
+  if(status==='CONFIRMED'&&teamId&&pos&&!livePolicy(teamId,pos))lines.push('⚠️ 이 팀·직책 조합의 검색 정책이 없어 검색할 수 없어요.');
+  if(e){
+    const docs=ownedDocs(e.id),conf=docs.filter(d=>d.metadata_status==='CONFIRMED').length;
+    if(docs.length&&teamId!==(e.db.team_id||''))
+      lines.push(`⚠️ 이 직원이 담당한 문서 <b>${docs.length}건</b>(확정 ${conf}건)은 <b>${esc(TEAMS[e.db.team_id]||'이전 팀')}</b> 문서로 그대로 남아요. 담당자 본인은 팀을 옮겨도 계속 이 문서를 볼 수 있으니, 저장한 뒤 <b>문서 관리</b>에서 담당자를 다시 지정하세요.`);
+    else if(docs.length&&status!=='CONFIRMED')
+      lines.push(`⚠️ 확정 직원이 아니게 되면 담당 문서 ${docs.length}건은 담당 불일치가 됩니다. 문서 관리에서 정리하세요.`);
+  }
+  return lines.join('<br>');
+}
+// 문서 관리 화면을 특정 조건으로 엽니다 (예: 이 직원이 담당한 문서만)
+function openDocuments(filter={}){Object.assign(docState,{q:'',team:'',type:'',status:''},filter);docState.sel.clear();if(location.hash==='#documents')route();else location.hash='#documents'}
 // 새 직원은 입력한 값만, 수정은 바뀐 값만 보냅니다.
 function employeeChanges(v,e){
   const next={team_id:v.team_id||null,position_code:v.position_code||null,verification_status:v.verification_status};
@@ -250,15 +313,25 @@ async function openEmployeeForm(e){
     hint.textContent=!team.value?'팀을 고르면 그 팀의 직책 목록이 나옵니다.'
       :list.length?'직책 목록은 이 팀의 직책별 검색 정책에서 가져옵니다.'
       :'이 팀은 정책에 등록된 직책이 없어요. 팀 목록 → 권한 설정에서 직책을 먼저 추가하세요.';
+    showImpact();
   };
-  team.onchange=sync;sync();
+  const status=$('fEmpStatus'),impact=$('fEmpImpact');
+  const showImpact=()=>{impact.innerHTML=employeeImpact(e,team.value,pos.value,status.value)};
+  team.onchange=sync;pos.onchange=status.onchange=showImpact;sync();
   const r=await pending;if(!r)return;
   const id=e?e.id:r.employee_id;
+  const moved=e&&(r.team_id||'')!==(e.db.team_id||''),docs=e?ownedDocs(e.id):[];
   try{
     tState.sel=id;
     await liveSave('employees',id,employeeChanges(r,e),r.reason,e?e.db.updated_at:null);
     toast(e?'직원 정보를 DB에 저장했습니다.':`직원 ${id}을(를) DB에 등록했습니다.`);
-  }catch(error){toast(error.message)}
+  }catch(error){return toast(error.message)}
+  // 팀을 옮긴 직원에게 담당 문서가 있으면 바로 정리하러 갈 수 있게 합니다.
+  if(moved&&docs.length){
+    const go=await ask({title:'담당 문서 정리',yes:'문서 관리로 이동',
+      text:`<b>${esc(id)}</b> 직원이 담당한 문서 <b>${docs.length}건</b>이 이전 팀에 남아 있어요.<br>문서 관리에서 이 직원의 문서만 모아 보여 드릴게요. 새 담당자를 지정하거나 상태를 바꿔 주세요.`});
+    if(go)openDocuments({q:id});
+  }
 }
 const originalDrawTeamList=drawTeamList;
 drawTeamList=function(){originalDrawTeamList();for(const tr of $('tTeamBody').querySelectorAll('tr')){const id=tr.children[1]?.textContent.trim(),team=LIVE_DB.teams.find(t=>t.team_id===id);if(tr.children[5])tr.children[5].textContent=team?ymd(new Date(team.created_at)):'—'}};
@@ -332,11 +405,284 @@ linkEmployee=async function(e){
   const r=await ask({title:'직원과 계정 연결',yes:'연결 저장',text:`사번 <b>${esc(e.id)}</b>와 계정을 연결합니다. 계정 상태·직원 확인 상태는 자동 변경하지 않습니다.`,fields:`<label>계정</label><select name="member">${options}</select>`+reasonField('연결 근거'),check:v=>v.reason.length>=3?'':'사유를 3자 이상 입력하세요.'});
   if(!r)return;const m=MEMBERS.find(m=>m.id===Number(r.member));try{await liveSave('users',m.id,{employee_id:e.id},r.reason,m.db.updated_at);toast('직원과 계정을 DB에서 연결했습니다.')}catch(error){toast(error.message)}
 };
-unlinkEmployee=function(){unlinked('일반 계정은 직원 연결이 필수인 DB 조건이 있습니다. 연결 해제 시 계정 처리 방식을 정한 뒤 연결합니다.')};
+// 직원 카드의 '연결 해제': 일반 계정은 DB 규칙상 직원 연결이 필수라 끊지 않고, 계정 퇴사 처리로 안내합니다.
+unlinkEmployee=function(e){const m=e&&linkedMember(e);if(!m)return toast('연결된 계정이 없어요.');act('retire',m.id)};
 saveFix=dSuggest=dKeep=dEdit=dBulk=function(){unlinked('탐지 수정 결과를 저장·재가명처리하는 기준이 없어 연결을 보류했습니다.')};
 const originalBindDetect=bindDetect;
 bindDetect=function(){originalBindDetect();if($('dSource'))$('dSource').textContent='실제 탐지 검토 데이터 연결 보류 · 예시 후보를 불러오지 않습니다.';if($('dList')&&!DETECTION_REVIEW.length)$('dList').textContent='검토 데이터와 수정 반영 기준을 맞춘 뒤 연결할 예정입니다.';for(const b of $('dStats').querySelectorAll('b'))b.textContent='미연결';$('dNote').textContent='검토 데이터와 수정 결과 저장·재가명처리·재색인 기준은 연결 보류입니다.';const note=$('view').querySelector('.readonly');if(note)note.textContent='원문 보기와 탐지 수정 기능은 연결하지 않았습니다. 예시 문서나 원문은 불러오지 않습니다.'};
 exportFixes=function(){unlinked('탐지 수정 저장 기능을 연결한 뒤 내보내기를 제공합니다.')};
+// ── 문서 담당자·팀 확정 (관리자 연결 4단계) ─────────────────────────────────
+// 기존 저장 API(/api/admin/save, kind=documents)를 그대로 씁니다. 서버가 '확정 = 확정된 담당 직원 + 그 직원의 사용 중인 팀' 조건,
+// 동시 수정 충돌(version), 변경 이력을 처리합니다. 문서 본문·개인정보·vault 는 이 화면에서 다루지 않습니다.
+const DOC_STATUS={PENDING:'미확정',CONFIRMED:'확정',REVIEW_REQUIRED:'검토 필요'};
+const DOC_STATUS_CLASS={PENDING:'st-EMPLOYEE_CANDIDATE',CONFIRMED:'st-OFFICIAL',REVIEW_REQUIRED:'st-UNRESOLVED'};
+const docState={q:'',team:'',type:'',status:'',sel:new Set()};
+const liveEmp=id=>(LIVE_DB?.employees||[]).find(e=>e.employee_id===id);
+const liveTeam=id=>(LIVE_DB?.teams||[]).find(t=>t.team_id===id);
+const posRank=p=>{const i=POSITION_ORDER.indexOf(p);return i<0?99:i};
+function docTeamLabel(id){if(!id)return '<span class="linkTag none">미지정</span>';const t=liveTeam(id);return esc(t?t.team_name:id)+(t&&!t.is_active?' <small>(미사용)</small>':'')}
+function docOwnerLabel(id){if(!id)return '<span class="linkTag none">미지정</span>';const e=liveEmp(id);return `<b>${esc(id)}</b>${e?.position_code?` <small style="color:var(--ink3)">${esc(e.position_code)}</small>`:''}`}
+// 확정 조건(서버와 같은 기준): 사용 중인 팀 + 그 팀에 소속된 확정 직원
+function docConfirmable(teamId,ownerId){const e=liveEmp(ownerId),t=liveTeam(teamId);return !!(t?.is_active&&e&&e.verification_status==='CONFIRMED'&&e.team_id===teamId)}
+// 확정됐지만 지금 기준으로는 조건이 깨진 문서 (담당자가 팀을 옮겼거나 미확정이 됐거나 팀이 미사용)
+const docMismatch=d=>d.metadata_status==='CONFIRMED'&&!docConfirmable(d.team_id,d.owner_employee_id);
+// 확정 문서인데 담당 직원의 계정이 퇴사·정지 상태
+const docInactiveOwner=d=>{if(d.metadata_status!=='CONFIRMED')return false;const m=MEMBERS.find(x=>x.employee_id===d.owner_employee_id);return !!m&&['RETIRED','LOCKED'].includes(m.db.status)};
+const DOC_FILTER={NO_OWNER:d=>!d.owner_employee_id||!d.team_id,MISMATCH:docMismatch,INACTIVE_OWNER:docInactiveOwner};
+function filteredDocs(){
+  const q=docState.q.trim().toLowerCase();
+  return (LIVE_DB?.documents||[]).filter(d=>
+    (!docState.status||(DOC_FILTER[docState.status]?DOC_FILTER[docState.status](d):d.metadata_status===docState.status))
+    &&(!docState.team||(docState.team==='NONE'?!d.team_id:d.team_id===docState.team))
+    &&(!docState.type||d.document_type===docState.type)
+    &&(!q||[d.document_id,d.document_type,d.owner_employee_id].some(v=>String(v||'').toLowerCase().includes(q))));
+}
+const DOC_ICON={
+  '':'<svg viewBox="0 0 24 24" fill="none" stroke="#A84A12" stroke-width="2"><path d="M6 3h8l4 4v14H6z"/><path d="M9 12h6M9 16h4"/></svg>',
+  CONFIRMED:'<svg viewBox="0 0 24 24" fill="none" stroke="#5B8C5A" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/></svg>',
+  PENDING:'<svg viewBox="0 0 24 24" fill="none" stroke="#C9671A" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round"/></svg>',
+  REVIEW_REQUIRED:'<svg viewBox="0 0 24 24" fill="none" stroke="#B43B3B" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5" stroke-linecap="round"/></svg>',
+  NO_OWNER:'<svg viewBox="0 0 24 24" fill="none" stroke="#8A6A48" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-5.5 6-5.5 1.3 0 2.5.3 3.4.8M16 15l5 5M21 15l-5 5"/></svg>',
+  MISMATCH:'<svg viewBox="0 0 24 24" fill="none" stroke="#B43B3B" stroke-width="2.2" stroke-linejoin="round"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5" stroke-linecap="round"/></svg>'};
+const DOC_FILTER_LABEL={MISMATCH:'담당 불일치',INACTIVE_OWNER:'퇴사·정지 직원 담당',NO_OWNER:'담당 미지정'};
+function drawDocumentsPage(){
+  const docs=LIVE_DB?.documents||[],teams=LIVE_DB?.teams||[];
+  const types=[...new Set(docs.map(d=>d.document_type).filter(Boolean))].sort();
+  const n={'':docs.length,NO_OWNER:docs.filter(DOC_FILTER.NO_OWNER).length,MISMATCH:docs.filter(docMismatch).length};
+  for(const k of Object.keys(DOC_STATUS))n[k]=docs.filter(d=>d.metadata_status===k).length;
+  const tile=(key,label)=>`<button type="button" class="stile" data-dtile="${key}" aria-pressed="${docState.status===key}">${DOC_ICON[key]}<span class="n">${n[key]}</span><span class="l">${label}</span></button>`;
+  // 타일에 없는 필터(예: 퇴사·정지 직원 담당)로 들어왔을 때 안내
+  const extra=docState.status&&!(docState.status in n)?`<p class="dnote">🔎 지금 <b>${esc(DOC_FILTER_LABEL[docState.status]||docState.status)}</b> 문서만 보고 있어요. <button type="button" class="linkBtn" data-dtile="${esc(docState.status)}">필터 해제</button></p>`:'';
+  $('view').innerHTML=`<div class="pageHead"><div class="crumb">관리자센터 · 문서 관리</div><h1>문서 관리</h1>
+    <p>문서마다 <b>담당 팀</b>과 <b>담당 직원</b>을 정하고 확정합니다. <b>확정된 문서만</b> 챗봇에서 검색되며, 누가 볼 수 있는지는 팀·직책 정책으로 정해집니다. 문서 본문과 개인정보는 이 화면에서 다루지 않습니다.</p></div>
+    <div class="stiles docTiles">${tile('','전체 문서')}${tile('CONFIRMED','확정 (검색됨)')}${tile('PENDING','미확정')}${tile('REVIEW_REQUIRED','검토 필요')}${tile('NO_OWNER','담당 미지정')}${tile('MISMATCH','담당 불일치')}</div>${extra}
+    <div class="bar3">
+      <input id="docQ" type="search" placeholder="문서 ID·문서 유형·담당 사번으로 검색" aria-label="문서 검색" value="${esc(docState.q)}">
+      <select id="docTeam" aria-label="담당 팀"><option value="">모든 팀</option><option value="NONE">팀 미지정</option>${teams.map(t=>`<option value="${esc(t.team_id)}">${esc(t.team_name)} (${esc(t.team_id)})</option>`).join('')}</select>
+      <select id="docType" aria-label="문서 유형"><option value="">모든 문서 유형</option>${types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
+      <button type="button" class="ghostBtn" id="docExport">↓ 내보내기</button>
+    </div>
+    <div class="actions" style="align-items:center;flex-wrap:wrap">
+      <span id="docSelInfo" style="color:var(--ink2);font-size:14px;margin-right:auto"></span>
+      <button type="button" class="ghostBtn" id="docBulkReview">선택 문서 검토 필요로</button>
+      <button type="button" class="primaryBtn" id="docBulkConfirm">선택 문서 확정</button>
+    </div>
+    <div class="etable"><div class="tableWrap"><table><thead><tr>
+      <th style="width:44px"><input type="checkbox" id="docAll" aria-label="보이는 문서 모두 선택"></th>
+      <th>문서 ID</th><th>문서 유형</th><th>담당 팀</th><th>담당 직원</th><th>문서 상태</th><th>마지막 수정</th><th></th></tr></thead>
+      <tbody id="docBody"></tbody></table></div></div>
+    <p class="pager2"><span id="docCount"></span><span>행을 누르면 담당 팀·직원·상태를 바꿀 수 있어요.</span></p>`;
+  $('docTeam').value=docState.team;$('docType').value=docState.type;
+  $('docQ').oninput=e=>{docState.q=e.target.value;drawDocRows()};
+  $('docTeam').onchange=e=>{docState.team=e.target.value;drawDocRows()};
+  $('docType').onchange=e=>{docState.type=e.target.value;drawDocRows()};
+  $('docExport').onclick=exportDocuments;
+  $('docAll').onchange=e=>{for(const d of filteredDocs())e.target.checked?docState.sel.add(d.document_id):docState.sel.delete(d.document_id);drawDocRows()};
+  $('docBulkConfirm').onclick=()=>bulkDocStatus('CONFIRMED');
+  $('docBulkReview').onclick=()=>bulkDocStatus('REVIEW_REQUIRED');
+  $('view').onclick=e=>{
+    const t=e.target.closest('[data-dtile]');
+    if(t){docState.status=docState.status===t.dataset.dtile?'':t.dataset.dtile;return drawDocumentsPage()}
+    const c=e.target.closest('[data-doc-check]');
+    if(c){c.checked?docState.sel.add(c.dataset.docCheck):docState.sel.delete(c.dataset.docCheck);return drawDocRows()}
+    const tr=e.target.closest('tr[data-doc]');
+    if(tr)openDocumentForm((LIVE_DB?.documents||[]).find(d=>d.document_id===tr.dataset.doc));
+  };
+  drawDocRows();
+}
+function drawDocRows(){
+  const rows=filteredDocs();
+  $('docBody').innerHTML=rows.length?rows.map(d=>{const on=docState.sel.has(d.document_id);return `<tr data-doc="${esc(d.document_id)}"${on?' class="sel"':''}>
+    <td><input type="checkbox" data-doc-check="${esc(d.document_id)}"${on?' checked':''} aria-label="${esc(d.document_id)} 선택"></td>
+    <td><b>${esc(d.document_id)}</b></td><td>${esc(d.document_type||'—')}</td><td>${docTeamLabel(d.team_id)}</td><td>${docOwnerLabel(d.owner_employee_id)}</td>
+    <td><span class="st ${DOC_STATUS_CLASS[d.metadata_status]||''}">${esc(DOC_STATUS[d.metadata_status]||d.metadata_status)}</span>${docMismatch(d)?' <span class="diffMark" style="background:var(--err-bg);color:var(--err)" title="담당 직원의 팀·확인 상태가 문서와 맞지 않아요">담당 불일치</span>':''}${docInactiveOwner(d)?' <span class="diffMark" title="담당 직원 계정이 퇴사·정지 상태예요">담당자 계정 중지</span>':''}</td>
+    <td>${d.updated_at?ymd(new Date(d.updated_at)):'—'}</td>
+    <td><button type="button" class="editBtn" data-doc-edit="${esc(d.document_id)}">수정</button></td></tr>`}).join('')
+    :`<tr><td colspan="8" class="emptyRow">조건에 맞는 문서가 없어요.</td></tr>`;
+  $('docCount').textContent=`${rows.length}건 표시 · 전체 ${(LIVE_DB?.documents||[]).length}건`;
+  const shown=rows.filter(d=>docState.sel.has(d.document_id)).length;
+  $('docAll').checked=rows.length>0&&shown===rows.length;$('docAll').indeterminate=shown>0&&shown<rows.length;
+  $('docSelInfo').textContent=docState.sel.size?`${docState.sel.size}건 선택됨`:'문서를 체크하면 여러 건을 한 번에 확정하거나 검토 필요로 바꿀 수 있어요.';
+  $('docBulkConfirm').disabled=$('docBulkReview').disabled=!docState.sel.size;
+}
+// 담당 직원 후보: 고른 팀에 소속된 '확정' 직원만 (서버 확정 조건과 같음)
+function docOwnerOptions(teamId,current){
+  const list=(LIVE_DB?.employees||[]).filter(e=>teamId&&e.team_id===teamId&&e.verification_status==='CONFIRMED')
+    .sort((a,b)=>posRank(a.position_code)-posRank(b.position_code)||a.employee_id.localeCompare(b.employee_id));
+  let html='<option value="">담당 직원 없음</option>'+list.map(e=>`<option value="${esc(e.employee_id)}"${e.employee_id===current?' selected':''}>${esc(e.employee_id)} · ${esc(e.position_code||'직책 없음')}</option>`).join('');
+  if(current&&!list.some(e=>e.employee_id===current))html+=`<option value="${esc(current)}" selected>${esc(current)} (이 팀의 확정 직원 아님)</option>`;
+  return html;
+}
+function documentFields(d){
+  const teams=(LIVE_DB?.teams||[]).filter(t=>t.is_active||t.team_id===d.team_id);
+  return `<p class="fhint" style="margin:0 0 8px">문서 <b>${esc(d.document_id)}</b> · ${esc(d.document_type||'유형 없음')}</p>`
+    +`<label for="fDocTeam">담당 팀</label><select id="fDocTeam" name="team_id"><option value="">팀 없음</option>${teams.map(t=>`<option value="${esc(t.team_id)}"${t.team_id===d.team_id?' selected':''}>${esc(t.team_name)} (${esc(t.team_id)})${t.is_active?'':' · 미사용'}</option>`).join('')}</select>`
+    +`<label for="fDocOwner">담당 직원</label><select id="fDocOwner" name="owner_employee_id"></select><p class="fhint" id="fDocOwnerHint"></p>`
+    +`<label for="fDocStatus">문서 상태</label><select id="fDocStatus" name="metadata_status">${Object.entries(DOC_STATUS).map(([k,v])=>`<option value="${k}"${k===d.metadata_status?' selected':''}>${v}</option>`).join('')}</select>`
+    +`<div class="warnBox" id="fDocImpact" style="margin:8px 0 10px"></div>`
+    +reasonField('예: 문서 내용 확인 후 영업1팀 카드발급 담당자로 지정');
+}
+function documentChanges(v,d){
+  const next={team_id:v.team_id||null,owner_employee_id:v.owner_employee_id||null,metadata_status:v.metadata_status};
+  return Object.fromEntries(Object.entries(next).filter(([k,val])=>(d[k]??null)!==val));
+}
+function checkDocument(v,d){
+  if(v.owner_employee_id&&!v.team_id)return '담당 직원을 고르려면 담당 팀을 먼저 고르세요.';
+  if(v.metadata_status==='CONFIRMED'){
+    if(!v.team_id||!v.owner_employee_id)return '확정하려면 담당 팀과 담당 직원이 모두 필요합니다.';
+    if(!liveTeam(v.team_id)?.is_active)return '사용 중인 팀만 확정할 수 있어요.';
+    if(!docConfirmable(v.team_id,v.owner_employee_id))return '담당 직원은 이 팀에 소속된 확정 직원이어야 합니다.';
+  }
+  if(!Object.keys(documentChanges(v,d)).length)return '바뀐 내용이 없습니다.';
+  if((v.reason||'').length<3)return '사유를 3자 이상 적어 주세요. 활동 기록에 남아요.';
+  return '';
+}
+// 확정했을 때 누가 검색할 수 있는지 미리 보여 줍니다 (allowed_documents 와 같은 규칙: 팀·직책 정책 TEAM=팀 전체, OWN=본인 담당)
+function docImpact(teamId,ownerId,status){
+  if(status!=='CONFIRMED')return `🔒 <b>${DOC_STATUS[status]||status}</b> 상태에서는 아무도 이 문서를 챗봇에서 검색할 수 없어요.`;
+  if(!teamId||!ownerId)return '확정하려면 담당 팀과 담당 직원을 모두 골라 주세요.';
+  const pol=(LIVE_DB?.policies||[]).filter(p=>p.team_id===teamId);
+  const scope=pos=>pol.find(p=>p.position_code===pos)?.search_scope||'NONE';
+  const viewers=(LIVE_DB?.employees||[]).filter(e=>e.team_id===teamId&&e.verification_status==='CONFIRMED'
+    &&(scope(e.position_code)==='TEAM'||(scope(e.position_code)==='OWN'&&e.employee_id===ownerId)));
+  const teamPos=pol.filter(p=>p.search_scope==='TEAM').map(p=>p.position_code).sort((a,b)=>posRank(a)-posRank(b));
+  const owner=liveEmp(ownerId),ownerScope=owner?scope(owner.position_code):'NONE',parts=[];
+  if(teamPos.length)parts.push(`${esc(liveTeam(teamId)?.team_name||teamId)} <b>${teamPos.map(esc).join('·')}</b> (팀 전체 문서 정책)`);
+  if(ownerScope==='OWN')parts.push(`담당 직원 <b>${esc(ownerId)}</b> 본인`);
+  let html=`🔍 확정하면 검색 가능: ${parts.join(' + ')||'없음'} → 직원 <b>${viewers.length}명</b>`;
+  if(ownerScope==='NONE')html+=`<br>⚠️ 담당 직원의 직책 정책이 '검색 불가'라 담당자 본인은 이 문서를 검색할 수 없어요.`;
+  return html+'<br><small>계정이 있는 직원만 실제로 로그인해 검색할 수 있어요.</small>';
+}
+async function openDocumentForm(d){
+  if(!d)return;
+  if(!LIVE_READY)return toast('DB 목록을 불러온 뒤 다시 시도하세요.');
+  if(LIVE_BUSY)return toast('저장 중입니다. 잠시 기다려 주세요.');
+  const pending=ask({title:`문서 담당·확정 · ${d.document_id}`,yes:'저장',
+    text:'담당 팀·담당 직원·문서 상태를 바꿉니다. <b>확정</b>하면 그 팀의 검색 정책에 따라 챗봇에서 검색됩니다. 바뀐 항목만 저장하고 활동 기록에 남깁니다.',
+    fields:documentFields(d),check:v=>checkDocument(v,d)});
+  // ask()가 입력 칸을 바로 그려 두므로, 팀을 바꾸면 그 팀의 확정 직원으로 담당자 목록을 다시 채웁니다.
+  const team=$('fDocTeam'),owner=$('fDocOwner'),status=$('fDocStatus'),hint=$('fDocOwnerHint'),impact=$('fDocImpact');
+  const showImpact=()=>{impact.innerHTML=docImpact(team.value,owner.value,status.value)};
+  const sync=()=>{
+    const prev=owner.value,orig=team.value===(d.team_id||'')?d.owner_employee_id:'';
+    owner.innerHTML=docOwnerOptions(team.value,orig);
+    if([...owner.options].some(o=>o.value===prev&&prev))owner.value=prev;
+    owner.disabled=!team.value;
+    hint.textContent=!team.value?'팀을 고르면 그 팀의 확정 직원이 담당자 후보로 나옵니다.'
+      :owner.options.length>1?'담당자 후보는 이 팀에 소속된 확정 직원입니다.':'이 팀에는 확정된 직원이 없어요. 팀 관리에서 직원을 먼저 확정하세요.';
+    showImpact();
+  };
+  team.onchange=sync;owner.onchange=status.onchange=showImpact;sync();
+  const r=await pending;if(!r)return;
+  try{
+    await liveSave('documents',d.document_id,documentChanges(r,d),r.reason,d.updated_at);
+    toast(`문서 ${d.document_id}을(를) 저장했습니다.`);
+  }catch(error){toast(error.message)}
+}
+// 여러 문서의 상태만 한 번에 바꿉니다. 문서마다 기존 저장 API를 차례로 호출하고(각각 버전 확인·이력 기록), 끝나면 한 번만 새로 불러옵니다.
+async function bulkDocStatus(target){
+  if(!LIVE_READY)return toast('DB 목록을 불러온 뒤 다시 시도하세요.');
+  if(LIVE_BUSY)return toast('저장 중입니다. 잠시 기다려 주세요.');
+  const docs=(LIVE_DB?.documents||[]).filter(d=>docState.sel.has(d.document_id));
+  const todo=docs.filter(d=>d.metadata_status!==target);
+  const blocked=target==='CONFIRMED'?todo.filter(d=>!docConfirmable(d.team_id,d.owner_employee_id)):[];
+  const ok=todo.filter(d=>!blocked.includes(d)),label=DOC_STATUS[target];
+  if(!ok.length)return toast(blocked.length?`담당 팀·직원이 맞지 않아 확정할 수 없는 문서뿐이에요 (${blocked.length}건). 하나씩 수정해 주세요.`:`선택한 문서는 이미 모두 ${label} 상태예요.`);
+  const r=await ask({title:`선택 문서 ${label} 처리`,yes:`${ok.length}건 ${label}`,danger:target!=='CONFIRMED',
+    text:`선택한 ${docs.length}건 중 <b>${ok.length}건</b>을 <b>${label}</b>(으)로 바꿉니다.`
+      +(docs.length-todo.length?`<br>이미 ${label} 상태라 건너뜀: ${docs.length-todo.length}건`:'')
+      +(blocked.length?`<br>⚠️ 담당 팀·직원이 맞지 않아 건너뜀: ${blocked.slice(0,5).map(d=>esc(d.document_id)).join(', ')}${blocked.length>5?' 외':''} (${blocked.length}건)`:'')
+      +(target==='CONFIRMED'?'<br>확정한 문서는 바로 챗봇 검색 대상이 됩니다.':'<br>검토 필요로 바꾼 문서는 <b>챗봇 검색에서 빠집니다.</b>')
+      +'<br>문서마다 따로 저장하고 활동 기록을 남깁니다.',
+    fields:reasonField(target==='CONFIRMED'?'예: 담당 배정표 검토 완료':'예: 담당 팀 재확인 필요'),
+    check:v=>(v.reason||'').length<3?'사유를 3자 이상 적어 주세요. 활동 기록에 남아요.':''});
+  if(!r)return;
+  LIVE_BUSY=true;let done=0;
+  try{
+    for(const d of ok){await liveApi('/api/admin/save',{kind:'documents',key:d.document_id,values:{metadata_status:target},reason:r.reason,version:d.updated_at});done++}
+    toast(`${done}건을 ${label}(으)로 저장했습니다.`);
+  }catch(error){toast(`${done}건 저장 후 멈췄어요: ${error.message}`)}
+  finally{LIVE_BUSY=false;docState.sel.clear();try{await liveRefresh()}catch(error){toast(error.message)}}
+}
+// ── 운영 상세 점검: DB에서 불러온 목록만으로 화면에서 계산합니다 (서버 수정 없음) ─────────────
+// 검색 횟수·오류·보안 경고·백업·LLM 상태처럼 서버가 따로 모아야 하는 값은 여기서 만들지 않습니다.
+function dataChecks(){
+  const D=LIVE_DB||{},emps=D.employees||[],docs=D.documents||[],teams=D.teams||[];
+  const conf=emps.filter(e=>e.verification_status==='CONFIRMED');
+  const isActiveTeam=id=>!!teams.find(t=>t.team_id===id)?.is_active;
+  const empOf=m=>emps.find(e=>e.employee_id===m.employee_id);
+  const noPolicy=conf.filter(e=>e.team_id&&isActiveTeam(e.team_id)&&!livePolicy(e.team_id,e.position_code));
+  const blocked=MEMBERS.filter(m=>m.db.status==='ACTIVE'&&m.role!=='ADMIN'&&(e=>scopeFor(e?.team_id,e?.position_code,e?.verification_status)==='NONE')(empOf(m)));
+  const mismatch=docs.filter(docMismatch),inactiveOwner=docs.filter(docInactiveOwner);
+  const pending=docs.filter(d=>d.metadata_status==='PENDING'),review=docs.filter(d=>d.metadata_status==='REVIEW_REQUIRED');
+  const unconf=emps.filter(e=>e.verification_status!=='CONFIRMED');
+  const noAccount=conf.filter(e=>!MEMBERS.some(m=>m.employee_id===e.employee_id));
+  const emptyTeams=teams.filter(t=>t.is_active&&!conf.some(e=>e.team_id===t.team_id));
+  const deadTeams=teams.filter(t=>!t.is_active&&emps.some(e=>e.team_id===t.team_id));
+  const ids=(list,key)=>list.map(x=>typeof key==='function'?key(x):x[key]);
+  return [
+    {level:'bad',title:'담당 불일치 확정 문서',n:mismatch.length,ids:ids(mismatch,'document_id'),btn:'문서 보기',go:()=>openDocuments({status:'MISMATCH'}),
+      desc:'담당 직원이 다른 팀으로 옮겼거나, 확정 직원이 아니거나, 팀이 미사용인데 확정된 문서예요. 검색 권한이 의도와 다르게 적용될 수 있어요.'},
+    {level:'warn',title:'로그인은 되지만 검색할 수 없는 계정',n:blocked.length,ids:ids(blocked,'login'),btn:'회원 관리',go:()=>{location.hash='#members'},
+      desc:'직원이 미확정이거나, 팀이 미사용이거나, 팀·직책 정책이 없거나 검색 불가예요. 챗봇에서 "볼 수 있는 문서가 없어요"가 나와요.'},
+    {level:'warn',title:'검색 정책이 없는 확정 직원',n:noPolicy.length,ids:ids(noPolicy,e=>`${e.employee_id}(${TEAMS[e.team_id]||e.team_id} ${e.position_code||'직책 없음'})`),btn:'팀 관리',go:()=>{location.hash='#teams'},
+      desc:'팀·직책 조합의 정책이 없어 검색할 수 없어요. 팀 목록 → 권한 설정에서 직책을 추가하세요.'},
+    {level:'warn',title:'퇴사·정지 계정 직원이 담당한 확정 문서',n:inactiveOwner.length,ids:ids(inactiveOwner,'document_id'),btn:'문서 보기',go:()=>openDocuments({status:'INACTIVE_OWNER'}),
+      desc:'같은 팀 직원은 계속 검색할 수 있어요. 담당자 교체가 필요한지 확인하세요.'},
+    {level:'warn',title:'미사용 팀에 남아 있는 직원',n:deadTeams.reduce((s,t)=>s+emps.filter(e=>e.team_id===t.team_id).length,0),ids:ids(deadTeams,'team_name'),btn:'팀 관리',go:()=>{location.hash='#teams'},
+      desc:'미사용 팀 소속 직원은 검색할 수 없어요. 다른 팀으로 옮기거나 팀을 다시 사용하세요.'},
+    {level:'info',title:'미확정 문서 (검색 안 됨)',n:pending.length,ids:ids(pending,'document_id'),btn:'문서 보기',go:()=>openDocuments({status:'PENDING'}),
+      desc:'담당 팀·직원을 정하고 확정해야 챗봇에서 검색돼요.'},
+    {level:'info',title:'검토 필요 문서 (검색 안 됨)',n:review.length,ids:ids(review,'document_id'),btn:'문서 보기',go:()=>openDocuments({status:'REVIEW_REQUIRED'}),
+      desc:'검토가 끝나면 확정으로 바꿔 주세요.'},
+    {level:'info',title:'확인 전·검토 필요 직원',n:unconf.length,ids:ids(unconf,'employee_id'),btn:'팀 관리',go:()=>{location.hash='#teams'},
+      desc:'직원 확정 전에는 검색할 수 없고, 문서 담당자로 지정할 수도 없어요.'},
+    {level:'info',title:'계정이 없는 확정 직원',n:noAccount.length,ids:ids(noAccount,'employee_id'),btn:'회원 초대',go:()=>{location.hash='#members'},
+      desc:'회원 초대로 계정을 발급해야 챗봇을 쓸 수 있어요.'},
+    {level:'info',title:'확정 직원이 없는 사용 중 팀',n:emptyTeams.length,ids:ids(emptyTeams,'team_name'),btn:'팀 관리',go:()=>{location.hash='#teams'},
+      desc:'이 팀의 문서는 검색할 사람이 없어요.'},
+  ];
+}
+function teamStatusRows(){
+  const D=LIVE_DB||{},emps=D.employees||[],docs=D.documents||[];
+  return (D.teams||[]).map(t=>{
+    const staff=emps.filter(e=>e.team_id===t.team_id&&e.verification_status==='CONFIRMED');
+    const accts=MEMBERS.filter(m=>m.db.status==='ACTIVE'&&staff.some(e=>e.employee_id===m.employee_id));
+    const can=accts.filter(m=>{const e=staff.find(x=>x.employee_id===m.employee_id);return scopeFor(e.team_id,e.position_code,e.verification_status)!=='NONE'});
+    const td=docs.filter(d=>d.team_id===t.team_id);
+    const pol=(D.policies||[]).filter(p=>p.team_id===t.team_id).sort((a,b)=>posRank(a.position_code)-posRank(b.position_code));
+    return {t,staff:staff.length,accts:accts.length,can:can.length,docs:td.length,conf:td.filter(d=>d.metadata_status==='CONFIRMED').length,pol};
+  });
+}
+function drawDataChecks(){
+  const host=$('view').querySelector('.hero');if(!host||!LIVE_DB)return;
+  $('dataCheckPanel')?.remove();
+  const checks=dataChecks(),need=checks.filter(c=>c.level!=='info'&&c.n).length;
+  const mark=c=>!c.n?'✅':c.level==='bad'?'⛔':c.level==='warn'?'⚠️':'ℹ️';
+  const preview=c=>c.n&&c.ids.length?`<span class="ids">${c.ids.slice(0,6).map(esc).join(', ')}${c.ids.length>6?` 외 ${c.ids.length-6}`:''}</span>`:'';
+  const scopeChip=p=>`<span class="pchip ${p.search_scope==='NONE'?'':'scope'}">${esc(p.position_code)} ${esc(SCOPE_TEXT[p.search_scope]||p.search_scope)}</span>`;
+  const section=document.createElement('section');section.id='dataCheckPanel';
+  section.innerHTML=`<div class="sbar"><h2>권한·데이터 점검 ${need?`<span class="hbadge h-warn">확인 필요 ${need}</span>`:'<span class="hbadge h-ok">이상 없음</span>'}</h2>
+      <button type="button" class="ghostBtn" id="dcRefresh">↻ DB 다시 불러오기</button></div>
+    <p class="dnote">DB에서 불러온 직원·계정·정책·문서 목록으로 화면에서 계산합니다. 검색 횟수·오류·보안 경고·백업·LLM 상태는 서버 집계가 필요해 아직 미연결입니다.</p>
+    <div class="listPanel"><ul class="dchecks">${checks.map((c,i)=>`<li class="lv-${c.n?c.level:'ok'}"><span class="lv" aria-hidden="true">${mark(c)}</span>
+      <div><b class="t">${esc(c.title)}</b><span class="cnt">${c.n}</span><p>${esc(c.desc)}</p>${preview(c)}</div>
+      ${c.n?`<button type="button" class="ghostBtn" data-check="${i}">${esc(c.btn)} ›</button>`:'<span></span>'}</li>`).join('')}</ul></div>
+    <h2 class="sh2">팀별 현황</h2>
+    <div class="etable"><div class="tableWrap"><table><thead><tr><th>팀</th><th>확정 직원</th><th>사용 중 계정</th><th>검색 가능 계정</th><th>확정 문서 / 전체</th><th>직책별 검색 범위</th></tr></thead>
+      <tbody>${teamStatusRows().map(r=>`<tr><td><b>${esc(r.t.team_name)}</b> <small style="color:var(--ink3)">${esc(r.t.team_id)}${r.t.is_active?'':' · 미사용'}</small></td>
+        <td>${r.staff}명</td><td>${r.accts}명</td><td>${r.can?`${r.can}명`:'<span style="color:var(--ink3)">0명</span>'}</td>
+        <td>${r.conf} / ${r.docs}건</td><td style="white-space:normal">${r.pol.map(scopeChip).join('')||'<span class="pchip">정책 없음</span>'}</td></tr>`).join('')}</tbody></table></div></div>`;
+  host.after(section);
+  section.querySelectorAll('[data-check]').forEach(b=>b.onclick=()=>checks[b.dataset.check].go());
+  $('dcRefresh').onclick=()=>liveRefresh().then(()=>toast('DB 목록을 새로 불러왔습니다.')).catch(e=>toast(e.message));
+}
+const originalBindSystem=bindSystem;
+bindSystem=function(){originalBindSystem();drawDataChecks()};
+
+function exportDocuments(){liveCsv([['문서 ID','문서 유형','담당 팀 코드','담당 팀','담당 직원','직책','문서 상태','마지막 수정'],
+  ...filteredDocs().map(d=>[d.document_id,d.document_type,d.team_id,liveTeam(d.team_id)?.team_name||'',d.owner_employee_id,liveEmp(d.owner_employee_id)?.position_code||'',DOC_STATUS[d.metadata_status]||d.metadata_status,d.updated_at||''])],'문서목록.csv')}
+
 // CSV는 실제 조회된 값만 내보내며 수식으로 실행될 수 있는 셀을 일반 텍스트로 만듭니다.
 function liveCsv(rows,name){const text=rows.map(r=>r.map(v=>{let s=String(v??'');if(/^[\s]*[=+@-]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}).join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+text],{type:'text/csv;charset=utf-8'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
 exportPerms=function(){liveCsv([['아이디','역할','팀','직책','검색 범위','복원 설정','계정 DB 상태'],...MEMBERS.map(m=>[m.login,m.role,teamName(m.team),m.position,m.scope,m.restore?'허용(기능 미연결)':'거부',m.db.status])],'회원권한.csv')};
