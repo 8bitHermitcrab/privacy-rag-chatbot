@@ -21,7 +21,7 @@
   /* ── 왼쪽: 어흥이 무대 ── */
   .stage{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:28px 24px;
          background:radial-gradient(circle at 50% 78%,#FFD58F 0,var(--stage) 38%,#F9D9A4 100%);border-right:3px dashed var(--line);overflow:hidden}
-  .back{position:absolute;top:18px;left:16px;z-index:3;width:42px;height:42px;display:grid;place-items:center;border-radius:50%;
+  .back{position:absolute;top:18px;left:16px;z-index:3;width:42px;height:42px;display:grid;place-items:center;border-radius:50%;padding:0;cursor:pointer;
         background:var(--card);border:3px solid var(--ink);color:var(--ink);box-shadow:0 3px 0 rgba(74,46,20,.18);transition:transform .1s,background .15s}
   .back:hover{background:#FFF1DB}
   .back:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(74,46,20,.18)}
@@ -71,6 +71,9 @@
   .top{display:flex;align-items:center;gap:10px;padding:16px 0 12px;border-bottom:2px dashed var(--line);color:var(--ink2);font-size:14px}
   .top b{font-family:'Jua',sans-serif;font-weight:400;font-size:20px;color:var(--ink)}
   .top label{margin-left:auto;display:flex;align-items:center;gap:6px;white-space:nowrap}
+  /* 로그인한 직원 정보 (사번 · 팀 · 직책 · 검색 범위) */
+  #me{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;background:var(--chip);color:var(--chip-ink);font-size:13px;white-space:nowrap}
+  #me:empty{display:none}
   select{font:inherit;border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:3px 8px}
   #log{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:18px 0 8px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
   .row{display:flex}
@@ -126,16 +129,17 @@
     .speech{font-size:15px;min-height:0;padding:10px 12px;max-width:none;flex:1}
     .speech::after{left:-15px;top:50%;bottom:auto;transform:translateY(-50%) rotate(135deg)}
     .chat{padding:0 16px;min-height:0}
-    .top{display:none}
+    .top{padding:8px 0}                 /* 좁은 화면: 내 정보만 남김 */
+    .top b,.top label,#info{display:none}
   }
 </style>
 </head>
 <body>
 <div class="app">
   <aside class="stage" id="stage">
-    <a class="back" href="/" aria-label="시작 화면으로 돌아가기" title="시작 화면으로">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-    </a>
+    <button type="button" class="back" id="logout" aria-label="로그아웃" title="로그아웃">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12H9"/></svg>
+    </button>
     <h1>아기 사자 어흥이<small>개인정보는 이름표로 숨기고 기록을 찾아줘요</small></h1>
     <div class="speech" id="speech" aria-live="polite"></div>
     <div class="lionWrap">
@@ -185,7 +189,7 @@
   </aside>
 
   <section class="chat">
-    <div class="top"><b>상담 기록 찾기</b><span id="info"></span>
+    <div class="top"><b>상담 기록 찾기</b><span id="me"></span><span id="info"></span>
       <label>참고 문서
         <select id="k"><option>1</option><option>2</option><option selected>3</option><option>5</option><option>10</option></select>
       </label>
@@ -207,7 +211,8 @@ document.getElementById("mane").innerHTML = Array.from({length:12}, (_, i) => {
   return `<circle cx="${(100 + 56 * Math.cos(a)).toFixed(1)}" cy="${(84 + 56 * Math.sin(a)).toFixed(1)}" r="24"/>`;
 }).join("");
 
-const EXAMPLES = ["연락처가 010-0791-2924인 건 찾아줘", "보이스피싱 피해 접수 기록 알려줘", "윤 선영 고객 대출 상담 내역 알려줘"];
+// 예시 질문: 실제 이름·전화번호 같은 개인정보 원문을 화면에 두지 않도록 일반 질문만 씁니다.
+const EXAMPLES = ["카드 이용한도 상향 심사 결과 알려줘", "신용카드 신규 발급 심사 메모 정리해줘", "보이스피싱 피해 접수 기록 알려줘"];
 const WAIT = ["킁킁… 서류 더미를 뒤지는 중이에요", "영차영차, 서류를 한 장씩 넘기는 중이에요", "이름표가 맞는 서류를 찾는 중이에요"];
 const FOUND = ["어흥! 찾았어요!", "킁킁, 냄새를 따라가 봤어요!", "어흥~ 서류 더미에서 찾아왔어요!"];
 
@@ -284,7 +289,7 @@ async function ask(text){
     const r = await fetch("/api/chat", {method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({query:text, k:Number(document.getElementById("k").value)})});
     const res = await r.json();
-    if (res.error){ await say("어흥? " + res.error, "sad"); return; }
+    if (res.error){ await say("어흥? " + friendly(res.error), "sad"); return; }
     row("bot", answerHtml(res));
     const cantAnswer = /답할 수 없|답변드리기 어렵|찾을 수 없/.test(res.answer || "");
     if (!(res.docs || []).length || cantAnswer){
@@ -308,6 +313,35 @@ say("어흥! 안녕하세요,\n저는 아기 사자 어흥이예요.\n궁금한 
 fetch("/api/info").then(r => r.json()).then(i => {
   document.getElementById("info").textContent = `검색 ${i.search_mode} · 임베딩 ${i.embed_model} · LLM ${i.llm_model}`;
 }).catch(() => {});
+
+// ── 로그인한 직원 정보 · 로그아웃 (직원 로그인 화면 /staff 와 연결) ──
+const SCOPE = {OWN: "본인 담당 문서", TEAM: "소속 팀 문서", NONE: "검색 불가"};
+let staffCsrf = "";
+async function loadMe(){
+  let r;
+  try { r = await fetch("/api/me", {cache: "no-store"}); } catch { return null; }
+  if (!r.ok){ location.replace("/staff"); return null; }       // 세션 만료 → 로그인 화면
+  const me = await r.json();
+  if (me.must_change_password){ location.replace("/staff"); return null; }  // 첫 비밀번호 변경 전
+  staffCsrf = me.csrf;
+  const team = [me.team_id, me.position_code].filter(Boolean).join(" ") || "팀 미지정";
+  document.getElementById("me").textContent = `👤 ${me.login_id} · ${team} · 검색: ${SCOPE[me.search_scope] || me.search_scope}`;
+  return me;
+}
+// 서버 오류 문구를 직원이 이해하기 쉬운 말로 바꿉니다.
+function friendly(err){
+  if (/다시 로그인|계정 상태/.test(err)){ setTimeout(() => location.replace("/staff"), 1500); return "로그인 시간이 끝났어요. 다시 로그인 화면으로 갈게요."; }
+  if (/확정 문서가 없/.test(err)) return "아직 내가 볼 수 있는 문서가 없어요. 관리자에게 문서 권한을 요청해 주세요.";
+  return err;
+}
+document.getElementById("logout").onclick = async () => {
+  try {
+    if (!staffCsrf) await loadMe();
+    await fetch("/api/logout", {method: "POST", headers: {"X-CSRF-Token": staffCsrf}});
+  } catch {}
+  location.replace("/staff");
+};
+loadMe();
 </script>
 </body>
 </html>
