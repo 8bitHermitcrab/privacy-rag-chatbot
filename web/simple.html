@@ -62,7 +62,8 @@
   <div class="note">API에는 가명처리된 텍스트만 전송되며, 답변의 토큰은 복원하지 않습니다.</div>
 </div>
 <script>
-const EXAMPLES = ["연락처가 010-0791-2924인 건 찾아줘", "보이스피싱 피해 접수 기록 알려줘", "윤 선영 고객 대출 상담 내역 알려줘"];
+// 예시 질문: 실제 이름·전화번호 같은 개인정보 원문을 화면에 두지 않도록 일반 질문만 씁니다.
+const EXAMPLES = ["카드 이용한도 상향 심사 결과 알려줘", "신용카드 신규 발급 심사 메모 정리해줘", "보이스피싱 피해 접수 기록 알려줘"];
 const log = document.getElementById("log"), q = document.getElementById("q"), send = document.getElementById("send");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const chips = s => esc(s).replace(/&lt;([A-Z_]+_[0-9a-f]{8})&gt;/g, '<span class="tok">$1</span>');
