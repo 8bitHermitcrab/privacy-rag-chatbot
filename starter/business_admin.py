@@ -22,7 +22,7 @@ router = APIRouter()
 COOKIE = 'rag_business'
 ROOT = Path(__file__).resolve().parents[1]
 LOCK_ID = 74932106
-USER_COLS = 'u.user_id,u.login_id,u.employee_id,u.role_code,u.status,u.must_change_password,u.last_login_at,u.created_at,u.updated_at'
+USER_COLS = 'u.user_id,u.login_id,u.employee_id,u.role_code,u.status,u.must_change_password,u.last_login_at,u.created_at,u.updated_at,u.can_review_persons'
 
 
 def connection():
@@ -157,7 +157,8 @@ def me(request: Request):
         user, payload = current(request, conn, changing=True)
         return {'login_id': user['login_id'], 'csrf': payload['csrf'], 'must_change_password': user['must_change_password'],
             'can_manage_users': user['can_manage_users'], 'role_code': user['role_code'], 'team_id': user['team_id'], 'position_code': user['position_code'],
-            'search_scope': user['search_scope'], 'can_restore': user['can_restore']}
+            'search_scope': user['search_scope'], 'can_restore': user['can_restore'],
+            'can_review_persons': bool(user['can_manage_users'] and user['can_review_persons'])}
 
 
 @router.post('/api/password')
@@ -217,7 +218,7 @@ def data(request: Request):
 
 def clean_values(kind, values):
     fields = {
-        'users': {'employee_id', 'role_code', 'status'},
+        'users': {'employee_id', 'role_code', 'status', 'can_review_persons'},
         'employees': {'team_id', 'position_code', 'verification_status'},
         'teams': {'team_name', 'is_active'},
         'roles': {'role_name'},
@@ -225,7 +226,7 @@ def clean_values(kind, values):
     if kind not in fields or not values or set(values) - fields[kind]:
         raise HTTPException(400, '허용되지 않은 수정 항목입니다.')
     for key, value in values.items():
-        if key in ('is_active', 'can_restore'):
+        if key in ('is_active', 'can_restore', 'can_review_persons'):
             if type(value) is not bool:
                 raise HTTPException(400, '참 또는 거짓 값이 필요합니다.')
         elif value is not None and (not isinstance(value, str) or not 1 <= len(value.strip()) <= 200):
@@ -273,6 +274,12 @@ def save(body: Edit, request: Request):
                     WHERE u.status='ACTIVE' AND r.can_manage_users''').fetchone()['n']
                 role = conn.execute('SELECT can_manage_users FROM auth.role_info WHERE role_code=%s', (values.get('role_code', before['role_code']),)).fetchone()
                 losing = values.get('status', before['status']) != 'ACTIVE' or not role or not role['can_manage_users']
+                if before['user_id'] == actor['user_id'] and values.get('can_review_persons') is True and not before['can_review_persons']:
+                    # 본인 지정은 아직 아무도 권한이 없을 때(최초 지정)만 허용합니다. 이후에는 다른 권한자가 지정합니다.
+                    reviewers = conn.execute('''SELECT count(*) AS n FROM auth.user_info u JOIN auth.role_info r USING(role_code)
+                        WHERE u.status='ACTIVE' AND r.can_manage_users AND u.can_review_persons''').fetchone()['n']
+                    if reviewers:
+                        raise HTTPException(400, '본인의 인물 검토 권한은 다른 관리자가 지정해야 합니다.')
                 if before['user_id'] == actor['user_id'] and losing:
                     raise HTTPException(400, '본인의 관리 권한이나 사용 상태를 해제할 수 없습니다.')
                 if managers <= 1 and before['status'] == 'ACTIVE' and before['role_code'] == 'ADMIN' and losing:
@@ -518,6 +525,7 @@ LOGIN_HTML = '''<!doctype html><html lang="ko"><meta charset="utf-8"><meta name=
 <form id="change" hidden><h2>초기 비밀번호 변경</h2><label>현재 비밀번호<input id="old" type="password" autocomplete="current-password" required maxlength="256"></label><label>새 비밀번호 (14자 이상)<input id="new" type="password" autocomplete="new-password" required minlength="14" maxlength="256"></label><button>변경 후 시작</button></form><p id="message" role="status"></p></main>
 <script>let csrf='';async function send(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'입력값을 확인하세요.');return d}
 async function ready(){const r=await fetch('/api/me',{cache:'no-store'});if(!r.ok)return;const d=await r.json();csrf=d.csrf;if(d.must_change_password||new URLSearchParams(location.search).has('change')){document.querySelector('#login').hidden=true;document.querySelector('#change').hidden=false}else location.href=d.can_manage_users?'/admin':'/chat'}
+if(new URLSearchParams(location.search).has('relogin'))document.querySelector('#message').textContent='계정 정보나 권한이 바뀌었거나 로그인 시간이 지났어요. 다시 로그인해 주세요.';
 document.querySelector('#login').onsubmit=async e=>{e.preventDefault();try{await send('/api/login',{login_id:document.querySelector('#id').value,password:document.querySelector('#pw').value});document.querySelector('#pw').value='';await ready()}catch(e){document.querySelector('#message').textContent=e.message}};
 document.querySelector('#change').onsubmit=async e=>{e.preventDefault();try{await send('/api/password',{old_password:document.querySelector('#old').value,new_password:document.querySelector('#new').value});document.querySelector('#old').value='';document.querySelector('#new').value='';location.href='/login'}catch(e){document.querySelector('#message').textContent=e.message}};ready();</script></html>'''
 
@@ -565,3 +573,73 @@ if __name__ == '__main__':
     parser.add_argument('--prepare', action='store_true', required=True)
     parser.parse_args()
     prepare()
+
+
+# ───────── 인물 검토 (업무 관리자 중 지정된 권한자 전용) ─────────
+# 계정 관리 권한(can_manage_users)과 개인별 인물 검토 권한(can_review_persons)을 모두 가진 사용자만 접근합니다.
+# 관리자 판단을 위해 원문 값을 보여 주므로 열람·판정은 auth.permission_change_log 에 남깁니다(원문 값은 기록하지 않음).
+def reviewer(request, conn):
+    user, payload = current(request, conn, manager=True)
+    if not user['can_review_persons']:
+        raise HTTPException(403, '인물 검토 권한이 필요합니다. 다른 관리자에게 권한 지정을 요청하세요.')
+    return user
+
+
+def review_call(function, *args, **kwargs):
+    from .person_review import ReviewError
+    try:
+        return function(*args, **kwargs)
+    except ReviewError as exc:
+        raise HTTPException(409, str(exc)) from None
+
+
+class ReviewDecision(BaseModel):
+    mention_id: int
+    action: str
+    expected_updated_at: str = Field(min_length=1, max_length=64)
+    reason: str = Field(min_length=3, max_length=500)
+    pid: int | None = None
+    target_mention_id: int | None = None
+
+
+@router.get('/api/admin/person-review/summary')
+def person_review_summary(request: Request):
+    from .person_review import summary
+    with connection() as conn:
+        reviewer(request, conn)
+    return review_call(summary)
+
+
+@router.get('/api/admin/person-review/items')
+def person_review_items(request: Request, queue: str = 'person'):
+    from .person_review import list_items
+    with connection() as conn:
+        reviewer(request, conn)
+    return {'items': review_call(list_items, queue)}
+
+
+@router.get('/api/admin/person-review/item/{mention_id}')
+def person_review_item(mention_id: int, request: Request):
+    from .person_review import detail
+    with connection() as conn:
+        user = reviewer(request, conn)
+        result = review_call(detail, mention_id)
+        log(conn, user['user_id'], 'PERSON_REVIEW_VIEW', '인물 검토 원문 열람',
+            after={'mention_id': mention_id, 'doc_id': result['mention']['doc_id']})
+    return result
+
+
+@router.post('/api/admin/person-review/decide')
+def person_review_decide(body: ReviewDecision, request: Request):
+    from .person_review import decide, PERSON_ACTIONS, FEATURE_ACTIONS
+    if body.action not in PERSON_ACTIONS + FEATURE_ACTIONS + ('undo',):
+        raise HTTPException(400, '처리 종류를 확인하세요.')
+    with connection() as conn:
+        user = reviewer(request, conn)
+        result = review_call(decide, body.mention_id, body.action, body.expected_updated_at,
+                             pid=body.pid, target_mention_id=body.target_mention_id,
+                             note=f'{user["login_id"]}: {body.reason.strip()}')
+        log(conn, user['user_id'], 'PERSON_REVIEW_' + body.action.upper(), body.reason.strip(),
+            after={'mention_id': body.mention_id, 'doc_id': result.get('doc_id'), 'action': body.action, 'status': result.get('status'),
+                   'pid': result.get('pid'), 'person_deleted': bool(result.get('person_deleted'))})
+    return result

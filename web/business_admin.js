@@ -5,7 +5,7 @@ const unlinked=message=>toast(message||'이 기능은 화면과 DB의 처리 기
 async function liveApi(path,body){
   const r=await fetch(path,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json','X-CSRF-Token':LIVE_ME.csrf}:{},body:body?JSON.stringify(body):undefined});
   let d;try{d=await r.json()}catch{throw Error('서버 응답을 확인할 수 없습니다.')}
-  if(r.status===401){location.replace('/login');throw Error('다시 로그인해 주세요.')}
+  if(r.status===401){location.replace('/login?relogin=1');throw Error('다시 로그인해 주세요.')}
   if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'입력값과 서버 상태를 확인하세요.');
   return d;
 }
@@ -17,6 +17,8 @@ EMP_STATUS.OFFICIAL='직원 확정';EMP_DESC.OFFICIAL='관리자가 소속 팀�
 EMP_STATUS.EMPLOYEE_CANDIDATE='확인 전';EMP_DESC.EMPLOYEE_CANDIDATE='DB의 직원 정보가 아직 미확정';
 EMP_STATUS.UNRESOLVED='검토 필요';EMP_DESC.UNRESOLVED='DB의 직원 정보가 검토 필요 상태';
 AUDIT_TYPE.DB_EVENT='계정·운영 이력';AUDIT_ICON.DB_EVENT='•';AUDIT_ORDER.push('DB_EVENT');
+AUDIT_TYPE.PERSON_FIX='인물 검토 처리';AUDIT_ICON.PERSON_FIX='👥';AUDIT_TYPE.PERSON_VIEW='인물 검토 원문 열람';AUDIT_ICON.PERSON_VIEW='👁';AUDIT_ORDER.push('PERSON_FIX','PERSON_VIEW');
+const PERSON_ACTION_TEXT={link:'기존 PID에 연결',create:'새 PID 생성',dismiss:'제외',assign:'정보 귀속',shared:'공유 값 표시',undo:'수동 처리 되돌리기'};
 
 // ── 활동 기록을 읽기 쉬운 문장으로 ─────────────────────────────────────────
 // DB에는 {"entity":"team_position_policy","values":{"search_scope":"OWN",...}} 형태로 저장되어 있습니다.
@@ -75,13 +77,15 @@ function applyLiveData(d){
       employee_id:u.employee_id||'',team:e?.team_id||'',position:e?.position_code||'',joined:new Date(u.created_at),lastLogin:u.last_login_at?new Date(u.last_login_at):null,
       scope:p?.search_scope||'NONE',restore:p?.can_restore||false,policyExists:!!p,history:[],db:u});
   }
-  const actionNames={BOOTSTRAP:'최초 업무 관리자 생성',PASSWORD_RECOVERY:'운영자 비밀번호 복구',PASSWORD_RESET:'초기 비밀번호 재발급',PASSWORD_CHANGED:'본인 비밀번호 변경',LOGIN_FAILED:'로그인 인증 실패',USER_CREATED:'계정 발급',USERS_SAVED:'계정 정보 변경',EMPLOYEES_SAVED:'직원 정보 변경',TEAMS_SAVED:'팀 정보 변경',DOCUMENTS_SAVED:'문서 권한 정보 변경',TEAM_POSITION_POLICY_SAVED:'팀·직책 정책 변경',TEST_DATA_DELETED:'테스트 데이터 삭제'};
+  const actionNames={BOOTSTRAP:'최초 업무 관리자 생성',PASSWORD_RECOVERY:'운영자 비밀번호 복구',PASSWORD_RESET:'초기 비밀번호 재발급',PASSWORD_CHANGED:'본인 비밀번호 변경',LOGIN_FAILED:'로그인 인증 실패',USER_CREATED:'계정 발급',USERS_SAVED:'계정 정보 변경',EMPLOYEES_SAVED:'직원 정보 변경',TEAMS_SAVED:'팀 정보 변경',DOCUMENTS_SAVED:'문서 권한 정보 변경',TEAM_POSITION_POLICY_SAVED:'팀·직책 정책 변경',TEST_DATA_DELETED:'테스트 데이터 삭제',PERSON_REVIEW_VIEW:'인물 검토 원문 열람',PERSON_REVIEW_LINK:'인물 검토 · 기존 PID 연결',PERSON_REVIEW_CREATE:'인물 검토 · 새 PID 생성',PERSON_REVIEW_DISMISS:'인물 검토 · 제외',PERSON_REVIEW_ASSIGN:'인물 검토 · 정보 귀속',PERSON_REVIEW_SHARED:'인물 검토 · 공유 값 표시',PERSON_REVIEW_UNDO:'인물 검토 · 되돌리기'};
   for(const l of d.logs){
     const target=MEMBERS.find(m=>m.id===l.target_user_id);
-    const type=l.action==='TEAM_POSITION_POLICY_SAVED'?'TEAM_POLICY':l.action==='TEAMS_SAVED'?'TEAM_CREATE':l.action==='USERS_SAVED'?'PERMISSION':'DB_EVENT';
+    const person=l.action.startsWith('PERSON_REVIEW_');
+    const type=l.action==='PERSON_REVIEW_VIEW'?'PERSON_VIEW':person?'PERSON_FIX':l.action==='TEAM_POSITION_POLICY_SAVED'?'TEAM_POLICY':l.action==='TEAMS_SAVED'?'TEAM_CREATE':l.action==='USERS_SAVED'?'PERMISSION':'DB_EVENT';
     const text=describeLog(l,d);   // DB의 변경 전·후 JSON을 사람이 읽는 문장으로 바꿈 (원본은 l.before_value / l.after_value)
     const row={id:l.log_id,at:new Date(l.changed_at),actor:l.actor,type,action:actionNames[l.action]||l.action,target:target?.login||text.target||l.target_role_code||'—',
       before:text.before,after:text.after,reason:l.reason,detail:'',result:''};
+    if(person){const a=l.after_value||{};row.target=a.doc_id?'문서 '+a.doc_id:'인물 검토 항목 '+(a.mention_id||'');row.before='';row.after=l.action==='PERSON_REVIEW_VIEW'?'원문 열람 (검토 항목 '+a.mention_id+')':(PERSON_ACTION_TEXT[a.action]||a.action)+(a.pid?' → PID '+a.pid:'')+(a.person_deleted?' · 남은 정보가 없어 PID 삭제':'');row.detail='사유: '+l.reason}
     AUDIT.push(row);if(target)target.history.push({at:row.at,text:row.action+' · '+row.reason});
     if(['USERS_SAVED','TEAM_POSITION_POLICY_SAVED'].includes(l.action))PERM_LOG.push({at:row.at,login:row.target,summary:row.action,reason:row.reason});
   }
@@ -340,9 +344,126 @@ exportEmployees=function(){liveCsv([['사번','팀','직책','DB 확인 상태',
 exportAudit=function(){if(aState.tab==='restore')return unlinked('실제 복원 이력 수집 기능은 미연결입니다.');liveCsv([['기록번호','일시','작업자','작업','대상','변경 전','변경 후','사유'],...filteredAudit().map(r=>[r.id,r.at.toISOString(),r.actor,r.action,r.target,r.before,r.after,r.reason])],'활동기록.csv')};
 exportRestore=function(){unlinked('실제 복원 이력 수집 기능은 미연결입니다.')};
 
+// ───────── 인물 검토 (지정된 권한자 전용) ─────────
+// 값은 모두 textContent로 넣어 HTML로 해석되지 않게 합니다.
+let prQueue='person',prItemsData=[],prCurrent=null,prBusy=false;
+const PR_REASON={NO_CANDIDATE:'후보 없음',NAME_PHONE_MATCH:'이름+전화 일치',RRN_MATCH:'이름+주민번호 일치',NAME_ONLY:'이름만 일치',PHONE_DIFFERENT:'이름 같고 전화 다름',MULTIPLE_MATCHES:'후보 여러 개',RRN_CONFLICT:'주민번호 충돌',IDENTITY_CONFLICT:'근거가 다른 PID를 가리킴',OTHER_SHARED_VALUE:'이름 외 정보만 겹침',LOCAL_IDENTITY_AMBIGUOUS:'문서 안 동명이인 의심',OWNER_AMBIGUOUS:'주인 특정 불가',TOKEN_MAPPING_MISSING:'토큰 대응 없음',TOKEN_MAPPING_CONFLICT:'토큰 대응 충돌',POLICY_INSUFFICIENT:'연결 근거 부족',ROLE_CONFLICT:'역할 다름',NAME_REQUIRED:'이름 없음',ALREADY_LINKED:'기존 연결',MANUAL_LINK:'수동 · PID 연결',MANUAL_CREATE:'수동 · 새 PID',MANUAL_ASSIGN:'수동 · 정보 귀속',MANUAL_SHARED:'수동 · 공유 값',MANUAL_DISMISS:'수동 · 제외',MANUAL_UNDONE:'수동 처리 되돌림'};
+const PR_STATUS={held:['보류','held'],linked:['자동 연결','done'],created:['자동 생성','done'],manual_linked:['수동 연결','done'],manual_created:['수동 생성','done'],shared:['공유 값',''],dismissed:['제외','']};
+const prEl=(tag,cls,value)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(value!==undefined)n.textContent=value;return n};
+function prAllowed(){return !!(LIVE_ME&&LIVE_ME.can_review_persons)}
+async function prLoad(){
+  $('prErr').textContent='';
+  try{
+    const [s,list]=await Promise.all([liveApi('/api/admin/person-review/summary'),liveApi('/api/admin/person-review/items?queue='+prQueue)]);
+    if(!document.contains($('prItems')))return;
+    $('prHeld').textContent=num(s.person_held);$('prFeature').textContent=num(s.feature_held);$('prManual').textContent=num(s.manual);
+    prItemsData=list.items;prDrawList();
+  }catch(e){if($('prErr'))$('prErr').textContent=e.message}
+}
+function prDrawList(){
+  const q=$('prQ').value.trim().toLowerCase(),body=$('prItems');body.replaceChildren();
+  const rows=prItemsData.filter(i=>!q||[i.doc_id,i.name||'',i.summary,PR_REASON[i.reason]||i.reason,i.role||''].join(' ').toLowerCase().includes(q));
+  for(const i of rows){
+    const tr=prEl('tr','prRow'+(prCurrent&&prCurrent.mention.mention_id===i.mention_id?' on':''));tr.tabIndex=0;
+    tr.append(prEl('td','',i.doc_id),prEl('td','',i.kind==='feature'?i.summary:(i.name||'(이름 없음)')+(i.summary?' · '+i.summary:'')),prEl('td','',i.role||'—'),prEl('td','',PR_REASON[i.reason]||i.reason));
+    tr.onclick=()=>prOpen(i.mention_id);tr.onkeydown=e=>{if(e.key==='Enter')prOpen(i.mention_id)};body.append(tr);
+  }
+  if(!rows.length){const tr=prEl('tr'),td=prEl('td','',prItemsData.length?'검색 결과가 없습니다.':'처리할 항목이 없습니다.');td.colSpan=4;tr.append(td);body.append(tr)}
+}
+async function prOpen(id){
+  $('prErr').textContent='';
+  try{prCurrent=await liveApi('/api/admin/person-review/item/'+id);prDrawDetail();prDrawList()}catch(e){$('prErr').textContent=e.message}
+}
+function prDrawDetail(){
+  const d=prCurrent,m=d.mention,held=m.status==='held',manual=m.decided_by==='manual';
+  $('prEmpty').hidden=true;$('prBody').hidden=false;$('prResult').textContent='';$('prConfirm').checked=false;$('prReason').value='';
+  const name=(m.values.find(v=>v.column==='data2')||{}).value;
+  $('prTitle').textContent=m.kind==='feature'?'주인 미상 정보':(name||'(이름 없음)')+' · '+(m.role||'역할 미확인');
+  $('prMeta').textContent='문서 '+m.doc_id+' · 사유: '+(PR_REASON[m.reason]||m.reason)+(m.pid?' · 현재 PID '+m.pid:'')+(m.review_note?' · 메모: '+m.review_note:'');
+  const st=PR_STATUS[m.status]||[m.status,''];$('prStatus').className='prBadge '+st[1];$('prStatus').textContent=st[0];
+  const mine=new Set(m.tokens),doc=$('prDoc');doc.replaceChildren();
+  for(const p of d.document){if(p.token){const s=prEl('span',mine.has(p.token)?'pii hit':'pii',p.text);s.title=p.label;doc.append(s)}else doc.append(document.createTextNode(p.text))}
+  const vals=$('prVals');vals.replaceChildren();for(const v of m.values){const li=prEl('li');li.append(prEl('span','',v.label),document.createTextNode(v.value));vals.append(li)}
+  $('prShared').textContent=m.shared_tokens.length?'공유 값으로 표시된 정보가 있어요. 연결·생성할 때 이 값은 개인에게 저장하지 않아요.':'';
+  $('prCandWrap').hidden=m.kind!=='person';$('prTargetWrap').hidden=m.kind!=='feature';
+  const cands=$('prCands');cands.replaceChildren();
+  for(const c of d.candidates){
+    const card=prEl('article','prCard'+(c.is_current?' cur':''));
+    card.append(prEl('h4','','PID '+c.pid+(c.is_current?' (현재 연결)':'')),prEl('p','','연결 문서 '+c.documents.length+'건 · 역할 '+(c.roles.join(', ')||'기록 없음')));
+    const t=prEl('table'),h=prEl('tr');h.append(prEl('th','','정보'),prEl('th','','이 항목'),prEl('th','','PID '+c.pid),prEl('th','','비교'));t.append(h);
+    for(const r of c.compare){const tr=prEl('tr');tr.append(prEl('td','',r.label),prEl('td','',r.mine.join(', ')||'—'),prEl('td','',r.theirs.join(', ')||'—'),prEl('td',r.state,r.state==='same'?'같음':r.state==='different'?'다름':'한쪽만'));t.append(tr)}
+    card.append(t);
+    if(c.documents.length)card.append(prEl('p','','문서: '+c.documents.slice(0,12).join(', ')+(c.documents.length>12?' 외 '+(c.documents.length-12)+'건':'')));
+    if(held){const b=prEl('button','ghostBtn','이 PID와 같은 사람 → 연결');b.type='button';b.onclick=()=>prDecide('link',{pid:c.pid},'PID '+c.pid+' 연결');card.append(b)}
+    cands.append(card);
+  }
+  if(m.kind==='person'&&!d.candidates.length)cands.append(prEl('p','prEmpty','겹치는 기존 PID가 없어요.'));
+  const targets=$('prTargets');targets.replaceChildren();
+  for(const t of d.targets){
+    const card=prEl('article','prCard');card.append(prEl('h4','',(t.name||'(이름 없음)')+' · '+(t.role||'역할 미확인')),prEl('p','',t.pid?'PID '+t.pid:'PID 없음 · 먼저 인물 보류에서 이 사람을 처리하세요'));
+    if(held){const b=prEl('button','ghostBtn','이 사람의 정보로 귀속');b.type='button';b.disabled=!t.pid;b.onclick=()=>prDecide('assign',{target_mention_id:t.mention_id},(t.name||'선택한 인물')+'에게 귀속');card.append(b)}
+    targets.append(card);
+  }
+  if(m.kind==='feature'&&!d.targets.length)targets.append(prEl('p','prEmpty','같은 문서에서 찾은 인물이 없어요.'));
+  const acts=$('prActs');acts.replaceChildren();
+  const add=(label,action,cls,text)=>{const b=prEl('button',cls,label);b.type='button';b.onclick=()=>prDecide(action,{},text);acts.append(b)};
+  if(held&&m.kind==='person'){add('다른 사람 → 새 PID 만들기','create','primaryBtn','새 PID 생성');add('사람 아님 → 제외','dismiss','ghostBtn','제외')}
+  if(held&&m.kind==='feature'){add('공유 값으로 표시 (대표번호 등)','shared','ghostBtn','공유 값 표시');add('무시','dismiss','ghostBtn','무시')}
+  if(manual)add('수동 처리 되돌리기','undo','ghostBtn','되돌리기');
+  if(!held&&!manual)acts.append(prEl('p','prResult','자동으로 연결된 항목이라 수동 처리 대상이 아니에요.'));
+}
+async function prDecide(action,extra,text){
+  if(prBusy||!prCurrent)return;
+  const reason=$('prReason').value.trim();
+  if(!$('prConfirm').checked){$('prResult').textContent='원문과 후보를 확인했다는 표시를 먼저 선택하세요.';return}
+  if(reason.length<3){$('prResult').textContent='처리 사유를 3자 이상 적어 주세요.';return}
+  prBusy=true;$('prBody').querySelectorAll('button').forEach(b=>b.disabled=true);$('prResult').textContent=text+' 처리 중…';
+  const m=prCurrent.mention;
+  try{
+    const r=await liveApi('/api/admin/person-review/decide',{mention_id:m.mention_id,action,expected_updated_at:m.updated_at,reason,...extra});
+    prBusy=false;await prLoad();await prOpen(m.mention_id);
+    $('prResult').textContent=text+' 완료'+(action==='create'&&r.pid?' · PID '+r.pid:'')+(r.person_deleted?' · 남은 정보가 없어 PID를 삭제했어요.':'');toast(text+' 완료');
+  }catch(e){prBusy=false;prDrawDetail();$('prResult').textContent=e.message}
+}
+function bindPersons(){
+  if(!prAllowed()){$('view').innerHTML='<div class="soon"><h2>인물 검토</h2><p>지정된 인물 검토 권한자만 볼 수 있는 메뉴예요. 다른 관리자에게 권한 지정을 요청하세요.</p><p><a href="#dashboard">대시보드로 돌아가기</a></p></div>';return}
+  prCurrent=null;
+  for(const b of $('prTabs').querySelectorAll('[data-prq]'))b.onclick=()=>{prQueue=b.dataset.prq;for(const o of $('prTabs').querySelectorAll('[data-prq]'))o.setAttribute('aria-pressed',o===b);prCurrent=null;$('prBody').hidden=true;$('prEmpty').hidden=false;prLoad()};
+  for(const o of $('prTabs').querySelectorAll('[data-prq]'))o.setAttribute('aria-pressed',o.dataset.prq===prQueue);
+  $('prRefresh').onclick=prLoad;$('prQ').oninput=prDrawList;prLoad();
+}
+// 권한 수정 창에 '인물 검토 권한' 지정 칸을 덧붙입니다. 본인 권한은 바꿀 수 없습니다.
+const prOriginalPermEdit=openPermEdit;
+openPermEdit=function(m){
+  prOriginalPermEdit(m);const form=$('pForm');if(!form)return;
+  const own=m.login===LIVE_ME.login_id,current=!!m.db.can_review_persons,firstGrant=own&&!current&&!MEMBERS.some(x=>x.db.can_review_persons&&x.db.status==='ACTIVE');
+  const box=prEl('fieldset');box.innerHTML='<legend>인물 검토 권한</legend>';
+  const label=prEl('label','prCheck'),input=prEl('input');input.type='checkbox';input.name='review';input.checked=current;input.disabled=own&&!firstGrant&&!current;
+  label.append(input,document.createTextNode(' 원문 개인정보를 보고 동명이인·주인 미상 정보를 처리할 수 있음'));
+  box.append(label,prEl('div','fhint',firstGrant?'아직 인물 검토 권한자가 없어 최초 1명은 본인이 지정할 수 있어요. 이후에는 다른 권한자가 지정해요.':own&&!current?'본인의 인물 검토 권한은 다른 관리자가 지정해야 해요.':'관리자 역할이면서 이 권한이 있는 사람에게만 인물 검토 메뉴가 보여요.'));
+  form.querySelector('fieldset').after(box);
+  const roleSubmit=form.onsubmit;
+  form.onsubmit=async e=>{
+    e.preventDefault();const reason=form.reason.value.trim(),role=form.querySelector('input[name=role]:checked').value,review=input.checked;
+    if(reason.length<3){$('pErr').textContent='변경 사유를 3자 이상 입력하세요.';return}
+    const values={};if(role!==m.role)values.role_code=role;if(review!==current)values.can_review_persons=review;
+    if(!Object.keys(values).length){$('pErr').textContent='변경 내용이 없습니다.';return}
+    if(own){
+      // 본인 계정 정보가 바뀌면 세션이 끝나므로, 저장 결과를 먼저 알린 뒤 다시 로그인 화면으로 보냅니다.
+      try{await liveApi('/api/admin/save',{kind:'users',key:String(m.id),values,reason,version:m.db.updated_at});
+        $('pErr').textContent='';closeDetail();toast('권한을 저장했어요. 바뀐 권한을 적용하려면 3초 뒤 다시 로그인 화면으로 이동해요.');
+        setTimeout(()=>location.replace('/login?relogin=1'),3000)}
+      catch(error){if($('pErr'))$('pErr').textContent=error.message;else toast(error.message)}
+      return}
+    try{await liveSave('users',m.id,values,reason,m.db.updated_at);closeDetail();toast('권한을 DB에 저장했습니다.')}catch(error){if($('pErr'))$('pErr').textContent=error.message;else toast(error.message)}
+  };
+  void roleSubmit;
+};
+
 async function bootLiveAdmin(){
   try{
     LIVE_ME=await liveApi('/api/me');if(LIVE_ME.must_change_password){location.replace('/login');return}
+    const personsMenu=$('menuPersons');if(personsMenu)personsMenu.hidden=!LIVE_ME.can_review_persons;
     await liveRefresh();LIVE_READY=true;
     document.querySelectorAll('.mock').forEach(n=>n.textContent='실제 DB · 일부 연결 보류');
     const me=$('meBtn');if(me){me.title=LIVE_ME.login_id;const labels=me.querySelectorAll('b,strong,.name');for(const label of labels)label.textContent=LIVE_ME.login_id}
@@ -351,5 +472,5 @@ async function bootLiveAdmin(){
     document.querySelectorAll('[data-logout]').forEach(b=>b.onclick=async()=>{try{await liveApi('/api/logout',{});location.replace('/login')}catch(e){toast(e.message)}});
   }catch(e){$('view').textContent='DB 연결을 확인하지 못했습니다: '+e.message}
 }
-window.addEventListener('hashchange',()=>{if(LIVE_READY){closeDetail();route();document.querySelectorAll('.mock').forEach(n=>n.textContent='실제 DB · 일부 연결 보류')}});
+window.addEventListener('hashchange',()=>{if(LIVE_READY){closeDetail();const page=(location.hash||'#dashboard').slice(1);if(['activity','dashboard'].includes(page))liveRefresh().catch(e=>toast(e.message));else route();document.querySelectorAll('.mock').forEach(n=>n.textContent='실제 DB · 일부 연결 보류')}});
 bootLiveAdmin();

@@ -569,6 +569,41 @@
   .tp-head input[type=text]{width:150px;max-width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit}
   .tp-row .lbl{font-size:12px;color:var(--ink2);margin-bottom:4px}
   #teamPolicyForm{flex-shrink:0}#tpRows{min-width:0}
+  /* ── 인물 검토 ── */
+  .prBar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0 6px}
+  .prBar input[type=search]{flex:1;min-width:200px;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 12px;font:inherit}
+  .prBar .pills button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .prErr{color:var(--err);font-size:13px;min-height:18px;margin:4px 0}
+  .prGrid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:16px;align-items:start}
+  .prList .tableWrap{max-height:70vh;overflow:auto}
+  .prList table{width:100%;border-collapse:collapse;font-size:13.5px}
+  .prList th{position:sticky;top:0;background:var(--head);text-align:left;padding:9px 10px;color:var(--ink3);font-weight:500}
+  .prList td{padding:9px 10px;border-top:1px solid var(--line)}
+  .prList tr.prRow{cursor:pointer}.prList tr.prRow:hover td{background:var(--head)}.prList tr.prRow.on td{background:var(--blue-bg)}
+  .prEmpty{color:var(--ink3);padding:30px 0;text-align:center}
+  .prHead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+  .prHead h2{margin:0;font-size:18px}.prHead p{margin:4px 0 0;color:var(--ink3);font-size:13px}
+  .prBadge{border-radius:6px;padding:4px 9px;font-size:12px;background:var(--head);color:var(--ink2);white-space:nowrap}
+  .prBadge.held{background:var(--orange-bg);color:#9A5B00}.prBadge.done{background:var(--green-bg);color:#17734B}
+  .prDetail h3{font-size:14px;margin:18px 0 8px}.prDetail h3 small{color:var(--ink3);font-weight:400;margin-left:6px}
+  .prDoc{white-space:pre-wrap;line-height:1.85;background:var(--head);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:14px;max-height:300px;overflow:auto}
+  .prDoc .pii{background:#E9EDF4;border-radius:4px;padding:0 3px}.prDoc .pii.hit{background:#FFE3A8;color:#6B4300;font-weight:700}
+  .prVals{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+  .prVals li{background:var(--head);border-radius:8px;padding:6px 10px;font-size:13.5px}.prVals li span{color:var(--ink3);margin-right:6px}
+  .prWarn{color:#9A5B00;font-size:13px;margin:6px 0 0}
+  .prCards{display:grid;gap:10px}
+  .prCard{border:1px solid var(--line);border-radius:12px;padding:12px 14px}.prCard.cur{border-color:var(--blue)}
+  .prCard h4{margin:0 0 4px;font-size:14.5px}.prCard p{margin:4px 0;color:var(--ink3);font-size:12.5px}
+  .prCard table{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0}
+  .prCard th,.prCard td{padding:6px 8px;border-top:1px solid var(--line);text-align:left}
+  .prCard .same{color:var(--green);font-weight:700}.prCard .different{color:var(--err);font-weight:700}.prCard .missing{color:var(--wait)}
+  .prCard .ghostBtn{margin-top:6px}
+  .prDetail textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;resize:vertical}
+  .prCheck{display:flex;gap:8px;align-items:center;margin:10px 0;font-size:14px}
+  .prActs{display:flex;gap:8px;flex-wrap:wrap}
+  .prResult{font-size:13px;color:var(--ink2);min-height:18px}
+  @media(max-width:1100px){.prGrid{grid-template-columns:1fr}}
+  .menu a[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -591,6 +626,7 @@
       <a href="#teams"><svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="16" width="6" height="5" rx="1"/><rect x="9" y="16" width="6" height="5" rx="1"/><rect x="16" y="16" width="6" height="5" rx="1"/><path d="M11 7h2v4h7v5h-2v-3h-5v3h-2v-3H6v3H4v-5h7z"/></svg>팀 관리</a>
       <a href="#activity"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2" stroke-linecap="round"/></svg>활동기록</a>
       <a href="#detect"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M8 11h6M11 8v6"/></svg>탐지 검토</a>
+      <a href="#persons" id="menuPersons" hidden><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-5.5 6-5.5"/><circle cx="17" cy="16" r="3.5"/><path d="m22 21-2.5-2.5"/></svg>인물 검토</a>
       <a href="#settings"><svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.9c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5zM13 15.5A3.5 3.5 0 1 1 13 8.5a3.5 3.5 0 0 1 0 7z"/></svg>시스템 환경</a>
     </nav>
     <button class="out" type="button" data-logout>
@@ -798,6 +834,40 @@
   <div class="dlist" id="dList"></div>
   <p class="readonly">🔒 내용은 기본으로 가려져 있어요. [원문 보기]를 누르면 그 항목만 보이고, 누가 언제 봤는지 활동기록에 남아요.
     다른 개인정보는 <span class="snip" style="padding:0;background:none"><span class="tok">&lt;토큰&gt;</span></span>으로만 보여요.</p>
+</template>
+
+<template id="personsTpl">
+  <div class="hero">
+    <div>
+      <h1>인물 검토</h1>
+      <p>자동으로 판단하지 못한 동명이인·주인 미상 정보를 직접 확인하고 처리해요. 원문 개인정보가 보이는 화면이라 열람과 처리가 모두 활동기록에 남아요.</p>
+    </div>
+    <div class="hstats"><div><b id="prHeld">—</b><span>인물 보류</span></div><div><b id="prFeature">—</b><span>주인 미상 정보</span></div><div><b id="prManual">—</b><span>수동 처리</span></div></div>
+  </div>
+  <div class="prBar">
+    <div class="pills" role="group" aria-label="검토 목록" id="prTabs"><button type="button" data-prq="person" aria-pressed="true">인물 보류</button><button type="button" data-prq="feature" aria-pressed="false">주인 미상 정보</button><button type="button" data-prq="manual" aria-pressed="false">수동 처리 완료</button></div>
+    <input type="search" id="prQ" maxlength="40" placeholder="이름·문서·사유로 찾기" aria-label="검토 항목 검색">
+    <button type="button" class="ghostBtn" id="prRefresh">↻ 새로고침</button>
+  </div>
+  <p class="prErr" id="prErr" role="alert"></p>
+  <div class="prGrid">
+    <section class="panel prList" aria-label="검토 목록"><div class="tableWrap"><table><thead><tr><th>문서</th><th>이름 / 정보</th><th>역할</th><th>사유</th></tr></thead><tbody id="prItems"></tbody></table></div></section>
+    <section class="panel prDetail" aria-label="검토 상세">
+      <p class="prEmpty" id="prEmpty">왼쪽 목록에서 항목을 선택하세요.</p>
+      <div id="prBody" hidden>
+        <div class="prHead"><div><h2 id="prTitle"></h2><p id="prMeta"></p></div><span class="prBadge" id="prStatus"></span></div>
+        <h3>문서 원문 <small>강조: 이 항목의 정보</small></h3><div class="prDoc" id="prDoc"></div>
+        <h3>이 항목의 정보</h3><ul class="prVals" id="prVals"></ul><p class="prWarn" id="prShared"></p>
+        <div id="prCandWrap"><h3>후보 PID <small>이름이나 다른 정보가 겹치는 기존 인물</small></h3><div class="prCards" id="prCands"></div></div>
+        <div id="prTargetWrap"><h3>같은 문서의 인물 <small>이 정보를 귀속할 대상</small></h3><div class="prCards" id="prTargets"></div></div>
+        <label class="lbl" for="prReason">처리 사유 (필수, 3자 이상)</label>
+        <textarea id="prReason" rows="2" maxlength="500" placeholder="예: 주민번호가 달라 다른 고객으로 판단"></textarea>
+        <label class="prCheck"><input type="checkbox" id="prConfirm"> 원문과 후보를 비교해 처리 내용을 확인했습니다.</label>
+        <div class="prActs" id="prActs"></div>
+        <p class="prResult" id="prResult" role="status"></p>
+      </div>
+    </section>
+  </div>
 </template>
 
 <template id="activityTpl">
@@ -2415,7 +2485,7 @@ function bindSystem(){
 }
 
 // ───────── 메뉴 ─────────
-const PAGES = {members: "회원·권한 관리", teams: "팀 관리", detect: "탐지 검토", activity: "활동기록", settings: "시스템 환경"};
+const PAGES = {members: "회원·권한 관리", teams: "팀 관리", detect: "탐지 검토", persons: "인물 검토", activity: "활동기록", settings: "시스템 환경"};
 const ALIAS = {roles: ["members", "perm"]};   // 예전 권한관리 주소(#roles)는 합친 페이지의 권한 탭으로
 
 // 회원·권한 관리: 회원 목록 / 권한 탭 바꾸기 (주소도 #members / #roles 로 맞춤, 다시 그리지 않고)
@@ -2462,6 +2532,10 @@ function route(){
     $("view").replaceChildren($("detectTpl").content.cloneNode(true));
     bindDetect();
     document.title = "탐지 검토 · 관리자센터";
+  } else if (page === "persons"){
+    $("view").replaceChildren($("personsTpl").content.cloneNode(true));
+    bindPersons();
+    document.title = "인물 검토 · 관리자센터";
   } else if (page === "activity"){
     $("view").replaceChildren($("activityTpl").content.cloneNode(true));
     bindActivity();
