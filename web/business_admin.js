@@ -87,7 +87,7 @@ function applyLiveData(d){
   }
   AUDIT.unsort=true;
   for(const m of MEMBERS)if(!m.history.length)m.history.push({at:m.joined,text:'계정 생성'});
-  MOCK.roles=d.roles.map((r,i)=>({name:r.role_name,code:r.role_code,count:MEMBERS.filter(m=>m.role===r.role_code).length,color:['#2F6BFF','#8B5CF6','#21A56B'][i%3]}));
+  MOCK.roles=d.roles.map((r,i)=>({name:r.role_name,code:r.role_code,count:MEMBERS.filter(m=>m.role===r.role_code).length,color:['#A84A12','#E8892B','#5B8C5A'][i%3]}));  // 어흥이 테마 색 (진한 주황·주황·초록)
 }
 async function liveRefresh(){applyLiveData(await liveApi('/api/admin/data'));route()}
 async function liveSave(kind,key,values,reason,version){

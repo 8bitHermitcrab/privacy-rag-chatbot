@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>관리자 대시보드</title>
+<title>어흥이 관리자센터</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <!--
   금융문서 AI 챗봇 관리자센터 — 대시보드
   - 회원·권한·활동 숫자는 연습용 데이터 (회원·권한 DB와 API 가 생기면 MOCK 부분만 서버 응답으로 바꾸면 됨)
@@ -569,6 +569,74 @@
   .tp-head input[type=text]{width:150px;max-width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit}
   .tp-row .lbl{font-size:12px;color:var(--ink2);margin-bottom:4px}
   #teamPolicyForm{flex-shrink:0}#tpRows{min-width:0}
+
+  /* ════════ 어흥이 테마 (목업 lead.html 스타일) ════════
+     HTML 구조·id·기능 코드는 그대로 두고 색·글꼴·모서리만 덮어씁니다.
+     원래 파란 테마로 되돌리려면 이 블록만 지우면 됩니다. */
+  :root{
+    --side:#FDE7BF; --side-ink:#4A2E14; --side-on:#A84A12;
+    --bg:#FFF6E6; --card:#FFFDF8; --ink:#4A2E14; --ink2:#7A5634; --ink3:#8A6A48; --line:#EED9B5; --head:#FFF1D6;
+    --blue:#A84A12; --blue-bg:#FFE3B8; --orange:#E8892B; --orange-bg:#FFF1D6; --green:#5B8C5A; --green-bg:#E4EFE3;
+    --purple:#8E5B9F; --purple-bg:#F4E9F5; --wait:#C9671A; --wait-bg:#FFE9CC; --err:#B43B3B; --err-bg:#FDECEA;
+  }
+  body{font-family:'Gowun Dodum','Apple SD Gothic Neo','Malgun Gothic',sans-serif}
+  h1,h2,h3,.brand span,.kpi .n,.tile .n,.stile .n,.bstat .n,.hero .hstats b,.donut .center b{font-family:'Jua','Gowun Dodum',sans-serif;font-weight:400}
+  :focus-visible{outline-color:#E8892B}
+
+  /* 왼쪽 메뉴: 밝은 살구색 바탕 + 선택 메뉴는 진한 주황 */
+  .side{border-right:1px solid var(--line)}
+  .brand{color:var(--ink);font-size:22px;line-height:1.15}
+  .brand svg{width:46px;height:46px}
+  .brand small{font-family:'Gowun Dodum',sans-serif;font-size:13px;color:var(--ink2)}
+  .menu a{color:var(--ink);font-size:17px;border-radius:12px}
+  .menu a svg{color:#C9671A}
+  .menu a:hover{background:rgba(168,74,18,.08);color:var(--ink)}
+  .menu a[aria-current=page]{background:#A84A12;color:#fff;font-weight:400}
+  .menu a[aria-current=page] svg{color:#FFE3B8}
+  .side .out{margin:auto 4px 0;background:var(--card);border:1px solid var(--line);border-radius:12px;color:var(--ink2)}
+  .side .out:hover{color:#A84A12}
+
+  /* 카드·패널: 둥글게, 테두리는 살구색 */
+  .panel,.listPanel,.notice,.tile,.etable,.atable,.actPanel,.quick,.card2,.hcard,.bar3,.soon,.ditem,.bstat,.kpi,.mtable{border-radius:16px}
+  .k-blue{border-color:#F3CF9A} .k-orange{border-color:#F6DDB4} .k-green{border-color:#CFE2CD} .k-purple{border-color:#E6D3EA}
+
+  /* 버튼: 알약 모양 + 아래 그림자 */
+  .primaryBtn{border-radius:999px;box-shadow:0 3px 0 #7A3E1A}
+  .primaryBtn:hover,.tabs2 .primaryBtn:hover{background:#8A3F0E}
+  .primaryBtn:active{transform:translateY(2px);box-shadow:0 1px 0 #7A3E1A}
+  .primaryBtn.danger{box-shadow:0 3px 0 #7E2525} .primaryBtn.danger:hover{background:#962F2F}
+  .ghostBtn,.editBtn{border-color:#CDB894;border-radius:999px}
+  .tabs2 button[aria-selected=true]{background:#5B8C5A;border-color:#5B8C5A}
+
+  /* 상태 글자색: 초록·보라를 테마에 맞게 */
+  .s-ACTIVE,.st-OFFICIAL,.a-good,.h-ok,.pchip.on,.k-LABEL_CONFLICT,.rs-yes,.id-HR_VERIFIED,.st-fixed{color:#3F6B3E}
+  .s-IDENTITY_PENDING,.a-pii,.k-BOUNDARY_PARTICLE,.hcard .keytag{color:#6E3F80}
+
+  /* 그 밖에 파란 계열로 직접 적혀 있던 색 */
+  .ptable th{background:var(--head)}
+  .seg label:has(input:checked) small{color:#FFE3C8}
+  .stile:hover{border-color:#E8C99A}
+  .etable tbody tr:hover td{background:#FFF6E6}
+  .etable tbody tr.sel td{background:#FFE9CC}
+  .eav,.card2 .bigav{background:#FFE3B8;color:#8A3F0E}
+  .pills{background:#F6E7CB}
+  .bitem .fl{background:#E8892B}
+  .ditem.done{background:#FFFAF0}
+  .hero{background:radial-gradient(circle at 18% 30%,rgba(255,227,184,.18) 0 2px,transparent 3px) 0 0/90px 70px,
+                   linear-gradient(120deg,#4A2E14,#7A3E1A 55%,#A84A12)}
+  .hero p,.hero .hstats span{color:#FFE3C8}
+  .sheet .dim,dialog.dlg::backdrop{background:rgba(74,46,20,.35)}
+  .drop,.pop{box-shadow:0 8px 24px rgba(74,46,20,.14)}
+  .bstat,.bstat .ic{box-shadow:0 2px 6px rgba(74,46,20,.08)}
+  .toast{background:#4A2E14}
+
+  /* 화면 코드 안에 색이 직접 적힌 아이콘(SVG)도 테마 색으로 바꿈 */
+  [fill="#2F6BFF"]{fill:#A84A12} [stroke="#2F6BFF"]{stroke:#A84A12}
+  [stroke="#1B2333"]{stroke:#4A2E14} [stroke="#1F6B5A"]{stroke:#5B8C5A}
+  [fill="#21A56B"]{fill:#5B8C5A} [stroke="#21A56B"]{stroke:#5B8C5A}
+  [stroke="#8B5CF6"]{stroke:#8E5B9F}
+
+  @media (max-width:820px){ .brand{font-size:18px} .brand svg{width:36px;height:36px} .menu a{font-size:15px} }
 </style>
 </head>
 <body>
@@ -576,14 +644,8 @@
   <!-- 왼쪽 메뉴 -->
   <aside class="side">
     <div class="brand">
-      <svg viewBox="0 0 46 52" aria-hidden="true">
-        <path d="M23 2 L42 9 V25 C42 38 33 46 23 50 C13 46 4 38 4 25 V9 Z" fill="#2F6BFF"/>
-        <path d="M23 7 L37 12.5 V25 C37 35 30 41 23 44.5 C16 41 9 35 9 25 V12.5 Z" fill="#1E2A47"/>
-        <rect x="13" y="17" width="20" height="15" rx="7" fill="#2F6BFF"/>
-        <circle cx="19" cy="24.5" r="2" fill="#fff"/><circle cx="27" cy="24.5" r="2" fill="#fff"/>
-        <path d="M18 32 L16 37 L22 32" fill="#2F6BFF"/>
-      </svg>
-      <span>금융문서 AI 챗봇<br>관리자센터</span>
+      <svg viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="92" fill="#E8892B"/><circle cx="100" cy="100" r="74" fill="#D9771F"/><circle cx="52" cy="50" r="18" fill="#F7C46C"/><circle cx="148" cy="50" r="18" fill="#F7C46C"/><circle cx="100" cy="106" r="58" fill="#F7C46C"/><ellipse cx="100" cy="130" rx="26" ry="19" fill="#FFF1D6"/><ellipse cx="78" cy="100" rx="7" ry="9" fill="#4A2E14"/><ellipse cx="122" cy="100" rx="7" ry="9" fill="#4A2E14"/><path d="M92 122 Q100 117 108 122 Q100 131 92 122Z" fill="#7A3E1A"/></svg>
+      <span>어흥이<br><small>관리자센터</small></span>
     </div>
     <nav class="menu" aria-label="관리자 메뉴" id="menu">
       <a href="#dashboard"><svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3 2 11h3v9h5v-6h4v6h5v-9h3z"/></svg>대시보드</a>
@@ -1340,7 +1402,7 @@ function drawRoles(){
   const q = pQuery.trim().toLowerCase();
   const rows = MEMBERS.filter(m => !q || [m.login, teamName(m.team), m.role, ROLE_LABEL[m.role]].some(v => v.toLowerCase().includes(q)))
     .sort((a, b) => (lockReason(a) ? 1 : 0) - (lockReason(b) ? 1 : 0) || a.login.localeCompare(b.login));
-  const STATUS_DOT = {ACTIVE: "#21A56B", IDENTITY_PENDING: "#8B5CF6", PENDING: "#E8892B", SUSPENDED: "#D64545"};
+  const STATUS_DOT = {ACTIVE: "#5B8C5A", IDENTITY_PENDING: "#8E5B9F", PENDING: "#E8892B", SUSPENDED: "#B43B3B"};  // 어흥이 테마 색
   $("pBody").innerHTML = rows.length ? rows.map(m => {
     const lock = lockReason(m), def = ROLE_DEFAULT[m.role], eff = effective(m);
     return `<tr class="${m.id === editingId ? "sel" : ""}${lock ? " locked" : ""}">
