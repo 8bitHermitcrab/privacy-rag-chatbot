@@ -26,6 +26,61 @@ POOL = int(os.getenv("SEARCH_POOL", "50"))                      # v4 의미 검�
 _COLS = "doc_id, chunk_id, masked_text, tokens, 1 - (embedding <=> %s) AS sim"
 
 
+# ───────── 역할 단서 재정렬 ─────────
+# 동명이인(같은 이름 토큰)이 있을 때, 질문의 역할 단서(고객/직원/대표)와 문서 안 그 이름의 역할을 비교해
+# 같은 역할 문서를 앞으로, 다른 역할로만 나오는 문서를 뒤로 보냅니다. 가명처리 본문만 사용합니다(vault 미사용).
+import re as _re
+ROLE_RERANK = os.getenv("SEARCH_ROLE_RERANK", "1") != "0"
+_STAFF_AFTER = _re.compile(r"^\s*(?:님\s*)?(?:과장|대리|부장|팀장|차장|사원|주임|책임|심사역|상담원|상담사|담당자|담당|매니저|직원|본부장|지점장|센터장)")
+_STAFF_BEFORE = _re.compile(r"(?:직원|담당자|담당|상담원|상담사|심사역|작성자|처리자|확인자|승인자|기안자|센터|팀|부서|소속)\s*[:：]?\s*$|(?:팀|부|센터|본부|지점)\s*/\s*[^/\n]{1,6}\s*/\s*$")
+_STAFF_CELL = _re.compile(r"^\s*\|\s*[^|\n]{0,12}(?:센터|팀|부|본부|지점)\s*\|")
+_CUSTOMER_AFTER = _re.compile(r"^\s*(?:고객님|고객|님(?!\s*(?:과장|대리|부장|팀장)))")
+_CUSTOMER_BEFORE = _re.compile(r"(?:고객|신청인|신청자|민원인|회원)\s*[:：]?\s*$")
+_REP = _re.compile(r"^\s*대표(?:님|자)?|대표(?:자)?\s*[:：]?\s*$")
+
+
+def _role_at(text, start, end):
+    after, before = text[end:end + 14], text[max(0, start - 14):start]
+    if _REP.match(after) or _REP.search(before):
+        return "REP"
+    if _STAFF_AFTER.match(after) or _STAFF_BEFORE.search(before) or _STAFF_CELL.match(after):
+        return "STAFF"
+    if _CUSTOMER_AFTER.match(after) or _CUSTOMER_BEFORE.search(before):
+        return "CUSTOMER"
+    return None
+
+
+def _roles(text, token):
+    return {r for m in _re.finditer(_re.escape(token), text) if (r := _role_at(text, m.start(), m.end()))}
+
+
+def query_roles(masked_query):
+    """질문 속 이름 토큰별 역할 단서. 예: '고객 <PERSON_x>' → {'<PERSON_x>': 'CUSTOMER'}"""
+    result = {}
+    for m in _re.finditer(r"<PERSON_[0-9A-Za-z]+>", masked_query):
+        role = _role_at(masked_query, m.start(), m.end())
+        # 질문의 '○○ 님'은 고객·직원 모두에게 쓰는 높임말이라 역할 단서로 쓰지 않습니다.
+        if role == "CUSTOMER" and _re.match(r"^\s*님", masked_query[m.end():]):
+            role = None
+        if role:
+            result[m.group()] = role
+    return result
+
+
+def _rerank(rows, cues):
+    """문서 안에서 그 이름이 질문과 '다른 역할로만' 분명히 나오는 문서만 뒤로 보냅니다.
+    역할 표현이 문서에 없는 경우가 많아, 역할이 일치한다고 앞으로 올리지는 않습니다(의미 점수 순서 유지)."""
+    if not cues:
+        return rows
+    def mismatch(row):
+        for token, role in cues.items():
+            found = _roles(row["masked_text"], token)
+            if found and role not in found:
+                return 1
+        return 0
+    return sorted(rows, key=mismatch)
+
+
 def mask_query(query):
     masked, records = pii_pipeline.pseudonymize(query, pii_pipeline.detect(query))
     return masked, sorted({r["token"] for r in records})
@@ -74,7 +129,8 @@ def search(query, k=10, conn=None, mode=None, allowed_doc_ids=None):
             elif mode == "v3":
                 allhit = _fetch(cur, "WHERE tokens @> %s::text[]", (q_tokens,), vec, k * 3, allowed_doc_ids)
                 anyhit = _fetch(cur, "WHERE tokens && %s::text[]", (q_tokens,), vec, k * 3, allowed_doc_ids)
-                docs = _merge([allhit, anyhit, semantic], k)
+                cues = query_roles(masked_q) if ROLE_RERANK else {}
+                docs = _merge([_rerank(allhit, cues), _rerank(anyhit, cues), semantic], k)
             elif mode == "v4":
                 anyhit = _fetch(cur, "WHERE tokens && %s::text[]", (q_tokens,), vec, POOL, allowed_doc_ids)
                 pool = {}

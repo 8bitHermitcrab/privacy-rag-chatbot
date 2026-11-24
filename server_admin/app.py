@@ -173,3 +173,70 @@ async def operation_settings(request:Request):
         return await run_in_threadpool(update_drain_timeout,data.get('drain_timeout_seconds'))
     except OperationError as exc:
         raise HTTPException(409,str(exc)) from None
+
+
+# 인물사전 관리는 업무 계정과 분리된 서버 관리자 인증을 사용합니다.
+# 처리 결과에는 원문 값·정규화 값·비밀키를 포함하지 않습니다.
+import threading
+_person_job_lock = threading.Lock()
+_person_previews = {}
+
+
+def _person_run(sensitivity, apply=False, plan=None):
+    from starter.person_dictionary import build_existing, PersonDictionaryError
+    if not _person_job_lock.acquire(blocking=False):
+        raise HTTPException(409, '인물사전 작업이 진행 중입니다. 완료 후 다시 시도하세요.')
+    try:
+        return build_existing(apply=apply,sensitivity=sensitivity,expected_plan=plan)
+    except PersonDictionaryError as exc:
+        # 이 모듈에서 정의한 검증 오류만 전달하며 DB 예외는 공통 처리에서 감춥니다.
+        raise HTTPException(409,str(exc)) from None
+    except FileNotFoundError:
+        raise HTTPException(409,'원문 파일 또는 탐지 모델이 없습니다. 서버의 PID_SOURCE_PATH와 PII_MODEL_DIR를 확인하세요.') from None
+    finally:
+        _person_job_lock.release()
+
+
+@app.post('/api/person-dictionary/preview')
+async def person_preview(request:Request):
+    token=mutation(request)
+    data=await payload(request)
+    sensitivity=data.get('sensitivity')
+    if sensitivity not in ('strict','balanced','relaxed'):
+        raise HTTPException(400,'민감도 설정을 확인하세요.')
+    result=await run_in_threadpool(_person_run,sensitivity)
+    # 미리보기는 동일한 로그인 세션·민감도에만 적용할 수 있습니다.
+    import time
+    _person_previews.clear()
+    _person_previews[token]=(result['plan'],sensitivity,time.monotonic())
+    audit('person_dictionary_preview')
+    return result
+
+
+@app.post('/api/person-dictionary/apply')
+async def person_apply(request:Request):
+    token=mutation(request)
+    data=await payload(request)
+    import time
+    cached=_person_previews.get(token)
+    if not cached or time.monotonic()-cached[2]>1800 or data.get('plan')!=cached[0] or data.get('sensitivity')!=cached[1]:
+        raise HTTPException(409,'같은 민감도로 미리보기를 다시 실행하세요. 미리보기는 30분간 유효합니다.')
+    if data.get('confirmed') is not True:
+        raise HTTPException(400,'반영할 결과를 확인하세요.')
+    result=await run_in_threadpool(_person_run,cached[1],True,cached[0])
+    _person_previews.pop(token,None)
+    audit('person_dictionary_apply')
+    return result
+
+
+@app.get('/api/person-dictionary/options')
+def person_options(request:Request):
+    authenticated(request)
+    import os
+    from starter.person_rules import PROFILES
+    from dotenv import dotenv_values
+    settings_file=dotenv_values(Path(__file__).resolve().parents[1]/'.env')
+    value=os.getenv('PID_SENSITIVITY',settings_file.get('PID_SENSITIVITY') or 'balanced')
+    if value not in PROFILES:
+        raise HTTPException(409,'서버의 PID_SENSITIVITY 설정을 확인하세요.')
+    return {'sensitivity':value,'profiles':PROFILES}
