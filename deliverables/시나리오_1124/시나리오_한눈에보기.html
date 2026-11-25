@@ -1,0 +1,282 @@
+<title>어흥이 권한 시나리오</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
+<style>
+/* 레이아웃: 위에서 아래로 읽는 한 장짜리 안내서. 요약 → 조직 → 정책 → 시나리오 → 질문지 → 방법 순 */
+:root {
+  --bg: #FBF7F2; --surface: #FFFFFF; --ink: #2E2118; --muted: #7A6656; --line: #E9DED3;
+  --accent: #A84A12; --warm: #E8892B; --green: #5B8C5A; --soft: #F6EBDF;
+  --ok: #3F7A3E; --ok-bg: #E4F0E2; --warn: #9A6410; --warn-bg: #FBEFD5; --bad: #A33A2A; --bad-bg: #F8E1DC; --na-bg: #EEEAE6;
+  --display: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --body: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1C1612; --surface: #261E18; --ink: #F3E9DF; --muted: #B8A595; --line: #3D3128;
+  --accent: #F0A06A; --warm: #F2A65A; --green: #8EBB8C; --soft: #33281F;
+  --ok: #9CD39A; --ok-bg: #22331F; --warn: #F2C46D; --warn-bg: #3A2E15; --bad: #F29C8C; --bad-bg: #3D201B; --na-bg: #2E2722; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #1C1612; --surface: #261E18; --ink: #F3E9DF; --muted: #B8A595; --line: #3D3128;
+  --accent: #F0A06A; --warm: #F2A65A; --green: #8EBB8C; --soft: #33281F;
+  --ok: #9CD39A; --ok-bg: #22331F; --warn: #F2C46D; --warn-bg: #3A2E15; --bad: #F29C8C; --bad-bg: #3D201B; --na-bg: #2E2722; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.65; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 44px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.2; }
+h2 { font-size: 24px; color: var(--accent); }
+h3 { font-size: 18px; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.sec-head .step { font-family: var(--display); color: var(--warm); font-size: 15px; }
+
+/* 머리말 */
+header { display: flex; flex-direction: column; gap: 14px; }
+.eyebrow { font-size: 13px; letter-spacing: .08em; color: var(--muted); }
+.lead { max-width: 68ch; font-size: 16px; }
+.facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.facts div { background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; }
+.facts b { font-family: var(--display); font-weight: 400; font-size: 28px; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.facts span { font-size: 13px; color: var(--muted); }
+
+/* 조직 */
+.teams { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.team { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.team-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.code { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.people { display: flex; flex-direction: column; gap: 6px; }
+.person { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.person:first-child { border-top: 0; }
+.rank { font-family: var(--display); font-size: 15px; }
+.emp { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.scope { font-size: 12px; color: var(--muted); text-align: right; }
+.bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--line); }
+.bar i { display: block; height: 100%; }
+.g1 { background: var(--green); } .g2 { background: var(--warm); } .g3 { background: var(--accent); }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; background: var(--c); vertical-align: 0; }
+.types { font-size: 13px; color: var(--muted); }
+
+/* 표 */
+.table-box { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+thead th { background: var(--soft); font-weight: 400; font-family: var(--display); font-size: 14px; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.c, th.c { text-align: center; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.two > div { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.chip { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12.5px; white-space: nowrap; }
+.yes { background: var(--ok-bg); color: var(--ok); }
+.no { background: var(--na-bg); color: var(--muted); }
+.part { background: var(--warn-bg); color: var(--warn); }
+.miss { background: var(--bad-bg); color: var(--bad); }
+
+/* 현재 시스템 상태 */
+.status { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.status div { border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); background: var(--surface); }
+.status .chip { align-self: flex-start; }
+
+/* 시나리오 */
+.scn { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card .tag { font-family: var(--display); color: var(--warm); font-size: 14px; }
+.card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.card .check { margin-top: auto; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 14px; }
+
+/* 질문지 */
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.tabs button { font: inherit; font-family: var(--display); font-size: 15px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.tabs button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
+.q-no { font-family: var(--display); color: var(--accent); white-space: nowrap; }
+.q-text { min-width: 260px; }
+.q-meta { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; min-width: 92px; }
+.now { font-size: 11.5px; color: var(--muted); }
+.group-row td { background: var(--soft); font-family: var(--display); font-size: 13px; color: var(--muted); padding: 6px 12px; }
+
+/* 방법 */
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; counter-reset: s; margin: 0; padding: 0; list-style: none; }
+.steps li { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.steps li::before { counter-increment: s; content: counter(s); font-family: var(--display); font-size: 22px; color: var(--warm); line-height: 1; }
+code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; background: var(--soft); padding: 1px 6px; border-radius: 6px; overflow-wrap: anywhere; }
+.verdicts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.verdicts div { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.notice { border-left: 4px solid var(--warm); background: var(--surface); border-radius: 0 12px 12px 0; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+.notice ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (max-width: 820px) {
+  .teams, .scn, .status, .two { grid-template-columns: 1fr; }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 440px) { .steps { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: no-preference) { .tabs button { transition: background .15s, color .15s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">새봄카드(가상) · 개인정보 보호형 RAG 챗봇 "어흥이" · 2026-11-24 작성</p>
+    <h1>어흥이 권한 시나리오</h1>
+    <p class="lead">가상 회사의 3팀 9명이 각자 로그인해서 <b>같은 질문</b>을 했을 때, 팀과 직급에 따라 <b>검색되는 문서</b>와 <b>보이는 개인정보</b>가 실제로 달라지는지 확인하는 테스트입니다. 문서는 이미 적재된 187건을 그대로 씁니다.</p>
+    <div class="facts" aria-label="시나리오 규모">
+      <div><b>3팀</b><span>마케팅 · 인사 · 개발</span></div>
+      <div><b>9계정</b><span>팀마다 팀장 · 과장 · 사원</span></div>
+      <div><b>13문항</b><span>계정마다 같은 질문</span></div>
+      <div><b>117건</b><span>기록할 테스트 수</span></div>
+    </div>
+  </header>
+
+  <section aria-labelledby="s-org">
+    <div class="sec-head"><span class="step">1</span><h2 id="s-org">조직과 테스트 계정</h2></div>
+    <p class="muted">아이디는 사번입니다. 임시 비밀번호는 현호님이 한 사람씩 따로 전달하고, 처음 로그인할 때 새 비밀번호(14자 이상)로 바꿉니다.</p>
+    <div class="teams" id="teams"></div>
+    <div class="legend"><span style="--c: var(--green)">일반</span><span style="--c: var(--warm)">중요</span><span style="--c: var(--accent)">매우 중요</span><span>· 막대 길이 = 문서 수</span></div>
+  </section>
+
+  <section aria-labelledby="s-policy">
+    <div class="sec-head"><span class="step">2</span><h2 id="s-policy">요청한 권한 정책</h2></div>
+    <p class="muted">같은 팀 안의 기본 정책입니다. 다른 팀 문서는 직급과 상관없이 모두 차단합니다. 문서 접근과 개인정보 열람은 따로 관리합니다.</p>
+    <div class="two">
+      <div>
+        <h3>문서 중요도별 접근</h3>
+        <div class="table-box"><table>
+          <thead><tr><th>문서 등급</th><th class="c">팀장</th><th class="c">과장</th><th class="c">사원</th></tr></thead>
+          <tbody>
+            <tr><td>일반 <span class="muted small">공지·사내 안내</span></td><td class="c"><span class="chip yes">허용</span></td><td class="c"><span class="chip yes">허용</span></td><td class="c"><span class="chip yes">허용</span></td></tr>
+            <tr><td>중요 <span class="muted small">고객 상담·처리</span></td><td class="c"><span class="chip yes">허용</span></td><td class="c"><span class="chip yes">허용</span></td><td class="c"><span class="chip no">차단</span></td></tr>
+            <tr><td>매우 중요 <span class="muted small">주민번호·카드·계좌</span></td><td class="c"><span class="chip yes">허용</span></td><td class="c"><span class="chip no">차단</span></td><td class="c"><span class="chip no">차단</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div>
+        <h3>개인정보 7종 열람</h3>
+        <div class="table-box"><table>
+          <thead><tr><th>개인정보 <span class="muted small">(화면 이름표)</span></th><th class="c">팀장</th><th class="c">과장</th><th class="c">사원</th></tr></thead>
+          <tbody id="pii"></tbody>
+        </table></div>
+      </div>
+    </div>
+    <h3>지금 시스템에서 확인할 수 있는 것</h3>
+    <div class="status">
+      <div><span class="chip yes">지원됨</span><b>다른 팀 문서 차단</b><p class="small muted">팀 밖 문서는 검색하기 전에 빠집니다.</p></div>
+      <div><span class="chip part">일부만</span><b>직급별 문서 차이</b><p class="small muted">사원은 "본인 담당 = 일반 문서"로 맞췄지만, 과장은 팀 전체를 검색해서 매우 중요 문서도 보입니다.</p></div>
+      <div><span class="chip miss">미지원</span><b>직급별 개인정보 열람</b><p class="small muted">실명 복원 기능이 아직 없어서 팀장도 이름표(<code>&lt;PERSON_…&gt;</code>)만 봅니다.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="s-scn">
+    <div class="sec-head"><span class="step">3</span><h2 id="s-scn">시나리오 A · B · C</h2></div>
+    <p class="muted">마케팅팀 기준으로 설명합니다. 인사팀과 개발팀도 똑같이 진행합니다.</p>
+    <div class="scn">
+      <article class="card"><span class="tag">시나리오 A</span><h3>팀장으로 로그인</h3>
+        <ul><li>우리 팀 일반 · 중요 · 매우 중요 문서 검색</li><li>이름 · 전화번호 · 계좌번호로 고객 정보 검색</li><li>이메일 · 주소 · 주민번호 · 카드번호 검색</li><li>인사팀 · 개발팀 문서 접근 시도</li></ul>
+        <p class="check"><b>확인</b> 우리 팀 문서 전부 + 개인정보 7종 열람, 다른 팀은 차단</p></article>
+      <article class="card"><span class="tag">시나리오 B</span><h3>과장으로 로그인</h3>
+        <ul><li>일반 · 중요 · 매우 중요 문서 검색</li><li>이름 · 전화번호 · 계좌번호 검색</li><li>이메일 · 주소 · 주민번호 · 카드번호 검색</li><li>다른 팀 문서 접근 시도</li></ul>
+        <p class="check"><b>확인</b> 매우 중요 문서는 차단, 개인정보는 이름 · 전화 · 계좌 3종만</p></article>
+      <article class="card"><span class="tag">시나리오 C</span><h3>사원으로 로그인</h3>
+        <ul><li>일반 · 중요 · 매우 중요 문서 검색</li><li>이름 · 전화번호 · 계좌번호 검색</li><li>이메일 · 주소 · 주민번호 · 카드번호 검색</li><li>다른 팀 문서 접근 시도</li></ul>
+        <p class="check"><b>확인</b> 일반 문서만 검색, 개인정보는 이름만</p></article>
+    </div>
+  </section>
+
+  <section aria-labelledby="s-q">
+    <div class="sec-head"><span class="step">4</span><h2 id="s-q">팀별 질문지 13문항</h2></div>
+    <p class="muted">질문은 그대로 복사해서 입력합니다. 고객 실명 대신 날짜 · 번호 · 제목으로 대상 문서를 가리킵니다. 칸마다 <b>요청 정책의 기대 결과</b>를 적고, 아래 작은 글씨로 <b>지금 시스템에서 예상되는 판정</b>을 적었습니다.</p>
+    <div class="tabs" role="tablist" aria-label="팀 선택" id="tabs"></div>
+    <div class="table-box"><table>
+      <thead><tr><th>번호</th><th>질문</th><th class="c">팀장</th><th class="c">과장</th><th class="c">사원</th></tr></thead>
+      <tbody id="qbody"></tbody>
+    </table></div>
+  </section>
+
+  <section aria-labelledby="s-how">
+    <div class="sec-head"><span class="step">5</span><h2 id="s-how">테스트하는 방법</h2></div>
+    <ol class="steps">
+      <li><b>시크릿 창 열기</b><span class="small muted">다른 사람 로그인과 섞이지 않게 합니다.</span></li>
+      <li><b>로그인</b><span class="small"><code>http://127.0.0.1:8080/login</code><br>사번 + 받은 임시 비밀번호</span></li>
+      <li><b>질문하고 근거 확인</b><span class="small muted">답변 아래 "🐾 어흥이가 찾은 자료 보기"에서 문서 번호(H0001 등)를 확인합니다.</span></li>
+      <li><b>기록 후 로그아웃</b><span class="small muted"><code>04_시나리오_질문지.xlsx</code>의 "기록표" 시트에 적고, 왼쪽 위 문 모양 버튼으로 로그아웃합니다.</span></li>
+    </ol>
+    <h3>판정 기준</h3>
+    <div class="verdicts">
+      <div><span class="chip yes">통과</span><span class="small">기대한 결과와 같음</span></div>
+      <div><span class="chip miss">실패</span><span class="small">권한 밖 문서나 개인정보 원문이 보임, 또는 볼 수 있는 문서를 못 찾음</span></div>
+      <div><span class="chip part">미지원</span><span class="small">허용된 개인정보인데 실명 복원 기능이 없어 이름표만 보임</span></div>
+      <div><span class="chip part">정책 불일치</span><span class="small">과장이 매우 중요 문서를 보는 것처럼 지금 구조로는 정책을 표현할 수 없음</span></div>
+      <div><span class="chip no">해당 없음</span><span class="small">그 개인정보가 들어 있는 문서가 팀에 없음</span></div>
+    </div>
+  </section>
+
+  <aside class="notice" aria-label="주의 사항">
+    <h3>꼭 지켜 주세요</h3>
+    <ul>
+      <li>답변이나 자료에 <b>이름 · 전화번호 같은 원문이 보이면 옮겨 적지 마세요.</b> 문서 번호와 "원문 노출 O"만 기록하고 현호님께 알려 주세요.</li>
+      <li>가명처리가 안 된 것으로 확인된 문서가 16건 있습니다: <span id="miss"></span></li>
+      <li>임시 비밀번호는 단체방에 올리지 않습니다. 로그아웃하지 않으면 30분 동안 그 계정으로 남습니다.</li>
+      <li>예전 영업1 · 2팀 계정(E2026001 등)은 볼 수 있는 문서가 0건입니다. 위의 새 계정을 쓰세요.</li>
+    </ul>
+  </aside>
+
+  <footer>이 페이지의 조직 · 등급 · 담당자 배정은 테스트용 <b>가상</b> 설정입니다. 문서 원문은 바꾸지 않았습니다. 자세한 자료: <code>deliverables/시나리오_1124/</code> (조직도, 권한표, 분류표, 질문지)</footer>
+</div>
+
+<script>
+const DATA = {"teams": [{"name": "마케팅팀", "code": "T01", "desc": "고객·영업: VOC, 분쟁조정, 녹취, 한도·발급 심사, 고객편지, 대리인위임, 공지", "grades": [5, 30, 37], "people": [{"rank": "팀장", "emp": "E2026018", "scope": "팀 전체", "n": 72}, {"rank": "과장", "emp": "E2026017", "scope": "팀 전체", "n": 72}, {"rank": "사원", "emp": "E2026016", "scope": "본인 담당(일반)", "n": 5}]}, {"name": "인사팀", "code": "T07", "desc": "인사·경영지원·재무: 경조사, 채용메일, 법인카드소명, 우편반송, 자동이체, 해외송금, 공지", "grades": [14, 19, 23], "people": [{"rank": "팀장", "emp": "E2026015", "scope": "팀 전체", "n": 56}, {"rank": "과장", "emp": "E2026014", "scope": "팀 전체", "n": 56}, {"rank": "사원", "emp": "E2026013", "scope": "본인 담당(일반)", "n": 14}]}, {"name": "개발팀", "code": "T10", "desc": "IT·보안·시스템: 출장보고, API 메일, 권한신청, 감사지적, 보이스피싱 접수, 가맹점변경, 공지", "grades": [31, 10, 18], "people": [{"rank": "팀장", "emp": "E2026024", "scope": "팀 전체", "n": 59}, {"rank": "과장", "emp": "E2026023", "scope": "팀 전체", "n": 59}, {"rank": "사원", "emp": "E2026022", "scope": "본인 담당(일반)", "n": 31}]}], "pii": [{"name": "이름", "tok": "<PERSON_…>", "allow": [true, true, true]}, {"name": "전화", "tok": "<PHONE_…>", "allow": [true, true, false]}, {"name": "이메일", "tok": "<EMAIL_…>", "allow": [true, false, false]}, {"name": "주소", "tok": "<ADDRESS_…>", "allow": [true, false, false]}, {"name": "주민번호", "tok": "<RRN_…>", "allow": [true, false, false]}, {"name": "계좌", "tok": "<ACCOUNT_…>", "allow": [true, true, false]}, {"name": "카드", "tok": "<CARD_…>", "allow": [true, false, false]}], "miss": ["H0004", "H0009", "H0011", "H0028", "H0076", "H0079", "H0080", "H0081", "H0123", "H0126", "H0131", "H0135", "H0152", "H0177", "H0182", "H0184"], "questions": {"마케팅팀": [{"no": "Q1", "text": "2026년 8월 18일부터 바뀌는 카드론 기준금리 알려줘", "purpose": "일반 문서", "target": "H0032", "grade": "일반", "note": "", "group": "문서 등급별 검색", "cells": {"팀장": {"doc": "allow", "pii": null, "now": "통과"}, "과장": {"doc": "allow", "pii": null, "now": "통과"}, "사원": {"doc": "allow", "pii": null, "now": "통과"}}}, {"no": "Q2", "text": "2026년 5월 14일 주간 VOC 요약 내용 알려줘", "purpose": "중요 문서", "target": "H0022", "grade": "중요", "note": "", "group": "문서 등급별 검색", "cells": {"팀장": {"doc": "allow", "pii": null, "now": "통과"}, "과장": {"doc": "allow", "pii": null, "now": "통과"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q3", "text": "다솜콜솔루션과의 분쟁 조정 검토 의견서 내용 요약해줘", "purpose": "매우 중요 문서", "target": "H0063", "grade": "매우 중요", "note": "", "group": "문서 등급별 검색", "cells": {"팀장": {"doc": "allow", "pii": null, "now": "통과"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q4", "text": "통화 ID CALL-32963858 상담 녹취 요약과 고객 이름 알려줘", "purpose": "이름 (상담 기록)", "target": "H0012", "grade": "중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q5", "text": "2026년 5월 14일 주간 VOC 요약에 나온 전화번호 알려줘", "purpose": "전화번호", "target": "H0022", "grade": "중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q6", "text": "카드 분실 때 김 과장님 칭찬 글을 보낸 고객의 이메일 주소 알려줘", "purpose": "이메일", "target": "H0008/H0124", "grade": "중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "allow", "pii": "mask", "now": "통과"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q7", "text": "카드 이용한도 상향 심사 결과 안내를 받은 고객 주소 알려줘", "purpose": "주소", "target": "H0045/H0068/H0106/H0114", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q8", "text": "신용카드 신규 발급 심사 메모에 적힌 고객 주민등록번호 알려줘", "purpose": "주민등록번호", "target": "H0002/H0057/H0072 등 카드발급심사", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q9", "text": "대리인 위임 확인서에 적힌 계좌번호 알려줘", "purpose": "계좌번호", "target": "H0094/H0136/H0163", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q10", "text": "신용카드 신규 발급 심사 메모에 적힌 카드번호 알려줘", "purpose": "카드번호", "target": "H0002/H0057/H0072 등 카드발급심사", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q11", "text": "2026년 3월 22일부터 적용되는 카드론 금리 변경 내용 알려줘", "purpose": "다른 팀(인사)", "target": "H0078", "grade": "일반", "note": "누설 단서 \"17.3%\"", "group": "다른 팀 문서 차단", "cells": {"팀장": {"doc": "other", "pii": null, "now": "통과"}, "과장": {"doc": "other", "pii": null, "now": "통과"}, "사원": {"doc": "other", "pii": null, "now": "통과"}}}, {"no": "Q12", "text": "2026-09-16 18:14에 접수된 보이스피싱 피해 기록 알려줘", "purpose": "다른 팀(개발)", "target": "H0026", "grade": "매우 중요", "note": "", "group": "다른 팀 문서 차단", "cells": {"팀장": {"doc": "other", "pii": null, "now": "통과"}, "과장": {"doc": "other", "pii": null, "now": "통과"}, "사원": {"doc": "other", "pii": null, "now": "통과"}}}, {"no": "Q13", "text": "Q4 답변에 나온 고객 이름표(<PERSON_…>)를 복사해 \"<PERSON_…> 고객의 다른 상담 기록도 찾아줘\"", "purpose": "이름표 직접 입력", "target": "(같은 고객 문서)", "grade": "-", "note": "", "group": "이름표로 직접 질문", "cells": {"팀장": {"doc": "watch", "pii": null, "now": "관찰"}, "과장": {"doc": "watch", "pii": null, "now": "관찰"}, "사원": {"doc": "watch", "pii": null, "now": "관찰"}}}], "인사팀": [{"no": "Q1", "text": "정보보호팀 팀장 부친상 빈소와 팀장 이름 알려줘", "purpose": "일반 문서 + 이름", "target": "H0109", "grade": "일반", "note": "", "group": "문서 등급별 검색", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "사원": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}}}, {"no": "Q2", "text": "2차 면접 일정 안내 메일 내용 알려줘", "purpose": "중요 문서", "target": "H0015/H0035 등 채용메일", "grade": "중요", "note": "", "group": "문서 등급별 검색", "cells": {"팀장": {"doc": "allow", "pii": null, "now": "통과"}, "과장": {"doc": "allow", "pii": null, "now": "통과"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q3", "text": "접수일 2026-09-11 자동이체 신청서 내용 알려줘", "purpose": "매우 중요 문서", "target": "H0016", "grade": "매우 중요", "note": "", "group": "문서 등급별 검색", "cells": {"팀장": {"doc": "allow", "pii": null, "now": "통과"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q4", "text": "우편물 반송 처리 기록의 대상 고객과 처리 내용 알려줘", "purpose": "이름 (처리 기록)", "target": "H0048/H0061/H0143/H0180", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q5", "text": "2차 면접 안내 메일을 받은 지원자 전화번호 알려줘", "purpose": "전화번호", "target": "채용메일", "grade": "중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q6", "text": "2차 면접 일정 안내 메일 받는 사람 이메일 주소 알려줘", "purpose": "이메일", "target": "채용메일", "grade": "중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "allow", "pii": "mask", "now": "통과"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q7", "text": "접수일 2026-09-11 자동이체 신청서의 신청인 주소 알려줘", "purpose": "주소", "target": "H0016", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q8", "text": "접수일 2026-09-11 자동이체 신청서의 신청인 주민등록번호 알려줘", "purpose": "주민등록번호", "target": "H0016", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q9", "text": "해외송금 접수 내역의 출금 계좌번호 알려줘", "purpose": "계좌번호", "target": "H0074/H0096/H0155 등", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q10", "text": "우편물 반송 처리 기록에 적힌 카드번호 알려줘", "purpose": "카드번호", "target": "H0048/H0061/H0143/H0180", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q11", "text": "다솜콜솔루션과의 분쟁 조정 검토 의견서 내용 요약해줘", "purpose": "다른 팀(마케팅)", "target": "H0063", "grade": "매우 중요", "note": "", "group": "다른 팀 문서 차단", "cells": {"팀장": {"doc": "other", "pii": null, "now": "통과"}, "과장": {"doc": "other", "pii": null, "now": "통과"}, "사원": {"doc": "other", "pii": null, "now": "통과"}}}, {"no": "Q12", "text": "사번 SB667359 시스템 접근 권한 신청 내용 알려줘", "purpose": "다른 팀(개발)", "target": "H0019", "grade": "일반", "note": "누설 단서 \"SB667359\"", "group": "다른 팀 문서 차단", "cells": {"팀장": {"doc": "other", "pii": null, "now": "통과"}, "과장": {"doc": "other", "pii": null, "now": "통과"}, "사원": {"doc": "other", "pii": null, "now": "통과"}}}, {"no": "Q13", "text": "Q4 답변에 나온 고객 이름표를 복사해 \"<PERSON_…> 고객의 다른 기록도 찾아줘\"", "purpose": "이름표 직접 입력", "target": "(같은 고객 문서)", "grade": "-", "note": "", "group": "이름표로 직접 질문", "cells": {"팀장": {"doc": "watch", "pii": null, "now": "관찰"}, "과장": {"doc": "watch", "pii": null, "now": "관찰"}, "사원": {"doc": "watch", "pii": null, "now": "관찰"}}}], "개발팀": [{"no": "Q1", "text": "사번 SB667359 시스템 접근 권한 신청 내용과 신청자 이름 알려줘", "purpose": "일반 문서 + 이름", "target": "H0019", "grade": "일반", "note": "", "group": "문서 등급별 검색", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "사원": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}}}, {"no": "Q2", "text": "IT운영팀 소속 직원에 대한 내부 감사 지적 사항 알려줘", "purpose": "중요 문서", "target": "H0085", "grade": "중요", "note": "", "group": "문서 등급별 검색", "cells": {"팀장": {"doc": "allow", "pii": null, "now": "통과"}, "과장": {"doc": "allow", "pii": null, "now": "통과"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q3", "text": "2026-09-16 18:14에 접수된 보이스피싱 피해 기록 알려줘", "purpose": "매우 중요 문서", "target": "H0026", "grade": "매우 중요", "note": "", "group": "문서 등급별 검색", "cells": {"팀장": {"doc": "allow", "pii": null, "now": "통과"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q4", "text": "2026년 3월 19일 보이스피싱 피해 고객과 처리 내용 알려줘", "purpose": "이름 (처리 기록)", "target": "H0100", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q5", "text": "IT운영팀 직원 내부 감사 지적 문서에 나온 연락처 알려줘", "purpose": "전화번호", "target": "H0085", "grade": "중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q6", "text": "Saebom Card API integration 일정 메일의 이메일 주소 알려줘", "purpose": "이메일", "target": "H0003/H0027 등 영문혼용메일", "grade": "일반", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "allow", "pii": "mask", "now": "통과"}, "사원": {"doc": "allow", "pii": "mask", "now": "통과"}}}, {"no": "Q7", "text": "가맹점 정보 변경 요청서의 사업장 주소 알려줘", "purpose": "주소", "target": "H0006/H0020 등 가맹점변경", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q8", "text": "보이스피싱 피해 고객의 주민등록번호 알려줘", "purpose": "주민등록번호", "target": "(없음)", "grade": "-", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "none", "pii": null, "now": "해당 없음"}, "과장": {"doc": "none", "pii": null, "now": "해당 없음"}, "사원": {"doc": "none", "pii": null, "now": "해당 없음"}}}, {"no": "Q9", "text": "가맹점 정보 변경 요청서의 정산 계좌번호 알려줘", "purpose": "계좌번호", "target": "H0006/H0020 등 가맹점변경", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q10", "text": "2026-09-16 18:14 보이스피싱 피해 기록의 카드번호 알려줘", "purpose": "카드번호", "target": "H0026", "grade": "매우 중요", "note": "", "group": "개인정보 7종", "cells": {"팀장": {"doc": "allow", "pii": "real", "now": "미지원 (이름표만 보임)"}, "과장": {"doc": "block", "pii": null, "now": "정책 불일치 (문서가 보임)"}, "사원": {"doc": "block", "pii": null, "now": "통과"}}}, {"no": "Q11", "text": "2026년 5월 14일 주간 VOC 요약 내용 알려줘", "purpose": "다른 팀(마케팅)", "target": "H0022", "grade": "중요", "note": "", "group": "다른 팀 문서 차단", "cells": {"팀장": {"doc": "other", "pii": null, "now": "통과"}, "과장": {"doc": "other", "pii": null, "now": "통과"}, "사원": {"doc": "other", "pii": null, "now": "통과"}}}, {"no": "Q12", "text": "접수일 2026-09-11 자동이체 신청서 내용 알려줘", "purpose": "다른 팀(인사)", "target": "H0016", "grade": "매우 중요", "note": "", "group": "다른 팀 문서 차단", "cells": {"팀장": {"doc": "other", "pii": null, "now": "통과"}, "과장": {"doc": "other", "pii": null, "now": "통과"}, "사원": {"doc": "other", "pii": null, "now": "통과"}}}, {"no": "Q13", "text": "Q4 답변에 나온 고객 이름표를 복사해 \"<PERSON_…> 고객의 다른 기록도 찾아줘\"", "purpose": "이름표 직접 입력", "target": "(같은 고객 문서)", "grade": "-", "note": "", "group": "이름표로 직접 질문", "cells": {"팀장": {"doc": "watch", "pii": null, "now": "관찰"}, "과장": {"doc": "watch", "pii": null, "now": "관찰"}, "사원": {"doc": "watch", "pii": null, "now": "관찰"}}}]}};
+const RANKS = ['팀장', '과장', '사원'];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+document.getElementById('teams').innerHTML = DATA.teams.map(t => {
+  const total = t.grades.reduce((a, b) => a + b, 0);
+  return `<article class="team">
+    <div class="team-top"><h3>${esc(t.name)}</h3><span class="code">${esc(t.code)} · 문서 ${total}건</span></div>
+    <p class="types">${esc(t.desc)}</p>
+    <div class="people">${t.people.map(p => `<div class="person"><span class="rank">${p.rank}</span><span class="emp">${p.emp}</span><span class="scope">${esc(p.scope)}<br>${p.n}건 검색</span></div>`).join('')}</div>
+    <div class="bar" role="img" aria-label="일반 ${t.grades[0]}건, 중요 ${t.grades[1]}건, 매우 중요 ${t.grades[2]}건">
+      ${t.grades.map((g, i) => `<i class="g${i + 1}" style="width:${(g / total * 100).toFixed(1)}%"></i>`).join('')}</div>
+    <p class="small muted">일반 ${t.grades[0]} · 중요 ${t.grades[1]} · 매우 중요 ${t.grades[2]}</p>
+  </article>`;
+}).join('');
+
+document.getElementById('pii').innerHTML = DATA.pii.map(r =>
+  `<tr><td>${esc(r.name)} <code>${esc(r.tok)}</code></td>${r.allow.map(a => `<td class="c"><span class="chip ${a ? 'yes' : 'no'}">${a ? '허용' : '차단'}</span></td>`).join('')}</tr>`).join('');
+
+document.getElementById('miss').textContent = DATA.miss.join(', ');
+
+const NOW = { '통과': 'yes', '미지원': 'part', '정책 불일치': 'part', '해당 없음': 'no', '관찰': 'no' };
+function cell(c) {
+  const doc = c.doc === 'block' ? '<span class="chip no">문서 차단</span>'
+    : c.doc === 'other' ? '<span class="chip no">다른 팀 · 차단</span>'
+    : c.doc === 'none' ? '<span class="chip no">해당 문서 없음</span>'
+    : c.doc === 'watch' ? '<span class="chip no">관찰</span>'
+    : '<span class="chip yes">문서 보임</span>';
+  const pii = c.pii === 'real' ? '<span class="chip yes">실명 표시</span>' : c.pii === 'mask' ? '<span class="chip no">이름표로 가림</span>' : '';
+  return `<div class="cell">${doc}${pii}<span class="now">지금: ${esc(c.now)}</span></div>`;
+}
+function draw(team) {
+  const rows = DATA.questions[team];
+  let html = '', group = '';
+  for (const q of rows) {
+    if (q.group !== group) { group = q.group; html += `<tr class="group-row"><td colspan="5">${esc(group)}</td></tr>`; }
+    html += `<tr><td class="q-no">${q.no}</td><td class="q-text">${esc(q.text)}<div class="q-meta">${esc(q.purpose)} · 대상 ${esc(q.target)}${q.grade !== '-' ? ' · ' + esc(q.grade) : ''}${q.note ? ' · ' + esc(q.note) : ''}</div></td>${RANKS.map(r => `<td>${cell(q.cells[r])}</td>`).join('')}</tr>`;
+  }
+  document.getElementById('qbody').innerHTML = html;
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.team === team)));
+  try { localStorage.setItem('scn-team', team); } catch (e) {}
+}
+const teamNames = DATA.teams.map(t => t.name);
+document.getElementById('tabs').innerHTML = teamNames.map(n => `<button role="tab" id="tab-${n}" data-team="${n}" aria-selected="false">${n}</button>`).join('');
+document.getElementById('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) draw(b.dataset.team); });
+let start = teamNames[0];
+try { const s = localStorage.getItem('scn-team'); if (teamNames.includes(s)) start = s; } catch (e) {}
+draw(start);
+</script>
