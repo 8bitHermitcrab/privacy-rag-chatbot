@@ -132,6 +132,8 @@ class BusinessTest(unittest.TestCase):
             def __exit__(self, *args): pass
             def execute(self, sql, args):
                 self.sql, self.args = sql, args
+                if sql.startswith('SELECT set_config('):     # 검색 전 HNSW 반복 탐색 설정
+                    self_case.assertIn('hnsw.iterative_scan', sql);self_case.assertEqual(args[0],search.ITERATIVE_SCAN);return
                 self_case.assertIn('doc_id = ANY(%s::text[])', sql)
                 self_case.assertLess(sql.index('doc_id = ANY'), sql.index('LIMIT'))
                 self_case.assertIn(['allowed-doc'], args)
