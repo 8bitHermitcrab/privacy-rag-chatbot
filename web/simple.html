@@ -23,6 +23,7 @@
   .me .bubble{background:var(--accent);color:#fff}
   .tok{display:inline-block;background:var(--chip);color:var(--chip-ink);border-radius:4px;padding:0 6px;
        font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85em;white-space:nowrap}
+  .tok.restored{background:#DDF3E4;color:#1F6B3A;font-family:inherit}
   .muted{color:var(--ink2)}
   details{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
   summary{cursor:pointer;color:var(--ink2);font-size:13px}
@@ -72,7 +73,13 @@
 const EXAMPLES = ["카드 이용한도 상향 심사 결과 알려줘", "신용카드 신규 발급 심사 메모 정리해줘", "보이스피싱 피해 접수 기록 알려줘"];
 const log = document.getElementById("log"), q = document.getElementById("q"), send = document.getElementById("send");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const chips = s => esc(s).replace(/&lt;([A-Z_]+_[0-9a-f]{8})&gt;/g, '<span class="tok">$1</span>');
+// 권한에 따라 서버가 보내 준 표시값(restored)이 있으면 토큰 자리에 넣고, 없으면 가명 토큰을 그대로 보여줍니다.
+// 일부 복원 값의 * 는 &#42; 로 바꿔 답변의 **굵게** 변환과 섞이지 않게 합니다.
+let shown = {};
+const chips = s => esc(s).replace(/&lt;([A-Z_]+_[0-9a-f]{8})&gt;/g, (m, t) => {
+  const r = shown["<" + t + ">"];
+  return r ? `<span class="tok restored" title="${t} · ${r.level === "FULL" ? "전체" : "일부"} 복원">${esc(r.value).replace(/\*/g, "&#42;")}</span>` : `<span class="tok">${t}</span>`;
+});
 
 function row(who, html){
   const r = document.createElement("div");
@@ -80,13 +87,14 @@ function row(who, html){
   log.appendChild(r); log.scrollTop = log.scrollHeight; return r;
 }
 function answerHtml(res){
+  shown = res.restored || {};
   const docs = res.docs || [], qt = new Set(res.query_tokens || []);
   const list = docs.map((d, i) => {
     const hit = (d.tokens || []).some(t => qt.has(t));
     return `<div class="doc"><b>${i + 1}. ${esc(d.doc_id)}</b> · score ${Number(d.score).toFixed(3)} ${hit ? '<span class="key">토큰 일치</span>' : ""}<pre>${chips(d.masked_text)}</pre></div>`;
   }).join("");
   const body = res.answer ? chips(res.answer.trim()).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>") : '<span class="muted">(LLM_API_KEY 없음 — 검색 결과만 표시)</span>';
-  return `${body}<details><summary>처리 과정 보기 (문서 ${docs.length}건)</summary>
+  return `${body}${Object.keys(shown).length ? '<div class="muted">초록색 값은 권한에 따라 원래 값(전체 또는 일부)을 보여 준 것입니다.</div>' : ""}<details><summary>처리 과정 보기 (문서 ${docs.length}건)</summary>
     <div class="meta">가명처리된 질의: ${chips(res.masked_query)}</div>
     <div class="meta">질의 토큰: ${[...qt].map(chips).join(" ") || "없음 (의미 검색만)"}</div>${list}</details>`;
 }

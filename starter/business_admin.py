@@ -542,15 +542,28 @@ def save_team_policies(body: TeamPolicyBatch, request: Request):
         raise HTTPException(400, '팀과 직책 정책을 확인하세요. 이번 변경은 모두 취소했습니다.') from None
 
 
-def allowed_documents(request):
+def chat_access(request):
+    """채팅 요청 사용자와 검색 가능한 확정 문서 목록. 복원 수준은 restore_of(user) 로 구합니다."""
     with connection() as conn:
         user, _ = current(request, conn)
     if user['search_scope'] == 'NONE' or user['verification_status'] != 'CONFIRMED' or not user['team_active']:
-        return []
+        return user, []
     from .db import rag_conn
     column, value = ('owner_employee_id', user['employee_id']) if user['search_scope'] == 'OWN' else ('team_id', user['team_id'])
     with rag_conn() as conn:
-        return [r[0] for r in conn.execute(f"SELECT document_id FROM rag.document_info WHERE metadata_status='CONFIRMED' AND {column}=%s", (value,)).fetchall()]
+        return user, [r[0] for r in conn.execute(f"SELECT document_id FROM rag.document_info WHERE metadata_status='CONFIRMED' AND {column}=%s", (value,)).fetchall()]
+
+
+def allowed_documents(request):
+    return chat_access(request)[1]
+
+
+def write_restore_log(user, doc_ids, tokens, levels):
+    """채팅 복원 1회 = 1행. 원래 값과 질문 원문은 넣지 않습니다. 실패하면 예외를 올려 복원 값을 보내지 않게 합니다."""
+    with connection() as conn:
+        conn.execute('''INSERT INTO auth.restore_log (user_id,team_id,position_code,doc_ids,tokens,levels)
+            VALUES (%s,%s,%s,%s,%s,%s)''', (user['user_id'], user.get('team_id'), user.get('position_code'),
+            list(doc_ids), list(tokens), Jsonb(levels)))
 
 
 @router.get('/api/admin/health')

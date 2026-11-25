@@ -52,7 +52,7 @@ class SchemaBootstrapTest(unittest.TestCase):
         with patch('dotenv.dotenv_values',return_value=env):prepare_existing_database()
         self.assertEqual(self.admin.execute("SELECT count(*) FROM pg_roles WHERE rolname IN ('rag_user','vault_user','migration_user') AND rolcanlogin").fetchone()[0],3)
         e=make('migration_user')
-        try:self.assertEqual(migrate(engine=e),'0005')
+        try:self.assertEqual(migrate(engine=e),'0007')
         finally:e.dispose()
 
     def test_equivalent_latest_schema_without_version_is_adopted(self):
@@ -84,7 +84,7 @@ class SchemaBootstrapTest(unittest.TestCase):
             with patch('dotenv.dotenv_values',return_value=env):prepare_existing_database()
             with e.connect() as c:
                 head=c.exec_driver_sql('SELECT version_num FROM public.alembic_version').scalar()
-                self.assertEqual(head,'0005')
+                self.assertEqual(head,'0007')
                 self.assertFalse(differences(capture(c),contract(head+'_contract.json')))
         finally:e.dispose()
 
@@ -93,8 +93,8 @@ class SchemaBootstrapTest(unittest.TestCase):
         with patch('dotenv.dotenv_values',return_value=env):prepare_existing_database()
         e=make('migration_user')
         try:
-            self.assertEqual(migrate(engine=e),'0005')
-            self.assertEqual(migrate(engine=e,check=True),'0005')
+            self.assertEqual(migrate(engine=e),'0007')
+            self.assertEqual(migrate(engine=e,check=True),'0007')
         finally:e.dispose()
         with patch('dotenv.dotenv_values',return_value=env):prepare_existing_database()
         e=make()
@@ -122,7 +122,7 @@ class SchemaBootstrapTest(unittest.TestCase):
         finally:e.dispose()
         with patch('dotenv.dotenv_values',return_value=env):prepare_existing_database()
         e=make('migration_user')
-        try:self.assertEqual(migrate(engine=e),'0005')
+        try:self.assertEqual(migrate(engine=e),'0007')
         finally:e.dispose()
         e=make()
         try:
@@ -208,7 +208,7 @@ class SchemaBootstrapTest(unittest.TestCase):
             finally:e.dispose()
         with patch('dotenv.dotenv_values',return_value=env),ThreadPoolExecutor(max_workers=2) as executor:
             futures=[executor.submit(install) for _ in range(2)]
-            self.assertEqual([f.result(timeout=30) for f in futures],['0005','0005'])
+            self.assertEqual([f.result(timeout=30) for f in futures],['0007','0007'])
 
 
     def test_wrong_existing_password_is_not_reset(self):
@@ -226,6 +226,62 @@ class SchemaBootstrapTest(unittest.TestCase):
             with e.connect() as c:self.assertEqual(c.exec_driver_sql('SELECT 1').scalar(),1)
         finally:e.dispose()
 
+
+    def test_data_version_rotation_flow(self):
+        """키 교체: v1 자동 등록 → v2 빈 스키마 생성(구조·외래키·소유자·트리거) → 적재 전 시작 차단 → 준비 완료 → 전환 → v1 정리"""
+        from starter import config, pii_pipeline, data_version as dv
+        env,make=self.database()
+        with patch('dotenv.dotenv_values',return_value=env):prepare_existing_database()
+        e=make('migration_user')
+        saved=(config.HMAC_KEY,config.DATA_VERSION)
+        db=psycopg.connect(host=env['DB_HOST'],port=int(env['DB_PORT']),dbname=env['POSTGRES_DB'],user='admin',password=env['POSTGRES_PASSWORD'],autocommit=True)
+        try:
+            self.assertEqual(migrate(engine=e),'0007')
+            config.use_data_version('v1');config.HMAC_KEY='fixture-old-key'
+            self.assertEqual(dv.verify_runtime(engine=e),'v1')
+            with patch.dict('os.environ',{'FIXTURE_OLD_KEY':'fixture-old-key','FIXTURE_NEW_KEY':'fixture-new-key'}):
+                with self.assertRaises(dv.DataVersionError):dv.create('v2','FIXTURE_OLD_KEY',engine=e)   # 같은 키 재사용 금지
+                dv.create('v2','FIXTURE_NEW_KEY',engine=e)
+                with self.assertRaises(dv.DataVersionError):dv.create('v2','FIXTURE_NEW_KEY',engine=e)
+                q=lambda sql_text:db.execute(sql_text).fetchall()
+                self.assertEqual(q("SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid IN ('rag_v2.chunks'::regclass) ")[0][0],'rag_user')
+                self.assertEqual({r[0] for r in q("SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid IN ('vault_v2.person'::regclass,'vault_v2.token_map'::regclass,'vault_v2.person_mention'::regclass)")},{'vault_user'})
+                self.assertEqual(q("SELECT confrelid::regclass::text FROM pg_constraint WHERE conrelid='rag_v2.chunks'::regclass AND contype='f'")[0][0],'rag.document_info')
+                self.assertEqual(q("SELECT confrelid::regclass::text FROM pg_constraint WHERE conrelid='vault_v2.person_mention'::regclass AND contype='f'")[0][0],'vault_v2.person')
+                self.assertTrue(q("SELECT 1 FROM pg_trigger WHERE tgrelid='vault_v2.person'::regclass AND NOT tgisinternal"))
+                self.assertFalse(q("SELECT has_table_privilege('rag_user','vault_v2.token_map','SELECT')")[0][0])
+                with e.connect() as c:
+                    base,copy=capture(c)['rag.chunks']['columns'],None
+                    copy=[list(r) for r in c.exec_driver_sql("""SELECT a.attname, format_type(a.atttypid,a.atttypmod), a.attnotnull,
+                        coalesce(pg_get_expr(d.adbin,d.adrelid),''), a.attidentity FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
+                        WHERE a.attrelid='rag_v2.chunks'::regclass AND a.attnum>0 AND NOT a.attisdropped ORDER BY a.attnum""").fetchall()]
+                self.assertEqual(copy,base)
+                # 적재 전: 서버 시작·준비 완료 모두 막힘
+                config.use_data_version('v2');config.HMAC_KEY='fixture-new-key'
+                with self.assertRaises(dv.DataVersionError):dv.verify_runtime(engine=e)
+                with self.assertRaises(dv.DataVersionError):dv.ready('v2','FIXTURE_NEW_KEY',engine=e)
+                # 새 키로 적재한 것처럼 1건 넣고 준비 완료 → 새 키로만 시작 가능
+                token=pii_pipeline._token('person','홍길동')
+                db.execute("INSERT INTO rag.document_info(document_id) VALUES ('D1')")
+                db.execute("INSERT INTO rag_v2.chunks(chunk_id,doc_id,chunk_idx,masked_text,tokens,embedding) VALUES ('D1#0','D1',0,%s,%s,%s::vector)",
+                           (token,[token],'['+','.join(['0.1']*int(os.getenv('EMBED_DIM','1024')))+']'))
+                db.execute("INSERT INTO vault_v2.token_map(token,label,normalized,originals) VALUES (%s,'person','홍길동','{홍길동}')",(token,))
+                with self.assertRaises(dv.DataVersionError):dv.ready('v2','FIXTURE_OLD_KEY',engine=e)
+                self.assertEqual(dv.ready('v2','FIXTURE_NEW_KEY',engine=e)['status'],'READY')
+                config.HMAC_KEY='fixture-old-key'
+                with self.assertRaises(dv.DataVersionError):dv.verify_runtime(engine=e)   # 키만 안 바꾼 경우
+                config.HMAC_KEY='fixture-new-key'
+                self.assertEqual(dv.verify_runtime(engine=e),'v2')
+                self.assertEqual(q("SELECT status FROM auth.data_version WHERE version='v2'")[0][0],'ACTIVE')
+                # 예전 버전 정리
+                with self.assertRaises(dv.DataVersionError):dv.drop('v1',engine=e)
+                dv.retire('v1',engine=e);dv.drop('v1',engine=e)
+                config.use_data_version('v1');config.HMAC_KEY='fixture-old-key'
+                with self.assertRaises(dv.DataVersionError):dv.verify_runtime(engine=e)
+                self.assertEqual(q("SELECT count(*) FROM rag.document_info")[0][0],1)   # 공용 문서 권한은 유지
+        finally:
+            config.use_data_version(saved[1]);config.HMAC_KEY=saved[0]
+            db.close();e.dispose()
 
 
 if __name__=='__main__':unittest.main()

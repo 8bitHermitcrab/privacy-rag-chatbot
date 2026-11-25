@@ -1,4 +1,5 @@
 """적재 파이프라인: 문서 → 탐지 → 가명처리 → 청크 → 임베딩 → rag.chunks / vault.token_map
+(데이터 버전 v2 이상이면 rag_v2.chunks / vault_v2.token_map. 문서 권한 rag.document_info 는 공용)
 
 사용법
     python -m starter.ingest --data data/holdout_labeled.jsonl --reset
@@ -41,7 +42,16 @@ def main():
     ap.add_argument("--reset", action="store_true", help="기존 rag.chunks / vault.token_map 비우고 시작")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--max-chars", type=int, default=600)
+    ap.add_argument("--data-version", default=config.DATA_VERSION,
+                    help="적재할 데이터 버전 (기본: .env 의 DATA_VERSION). 키 교체 때 새 버전(v2 …)에 미리 적재")
+    ap.add_argument("--key-env", default="HMAC_KEY", help="가명처리에 쓸 키가 든 .env 항목 이름 (키 교체 때 NEW_HMAC_KEY)")
     a = ap.parse_args()
+    from .data_version import prepare_target, DataVersionError
+    try:
+        prepare_target(a.data_version, a.key_env)
+    except DataVersionError as error:
+        raise SystemExit("중단: " + str(error))
+    print(f"데이터 버전 {config.DATA_VERSION} ({config.RAG_DATA_SCHEMA}.chunks / {config.VAULT_DATA_SCHEMA}.token_map) 에 적재합니다.")
 
     if pii_pipeline.IS_DEMO and config.EMBED_PROVIDER == "api":
         print("⚠ 데모용 마스킹은 이름 등을 탐지하지 못해 원문 일부가 임베딩 API로 전송됩니다. "
@@ -49,7 +59,8 @@ def main():
 
     docs = load_docs(a.data, a.limit)
     config.OUT_DIR.mkdir(exist_ok=True)
-    pseudo_path = config.OUT_DIR / f"pseudo_{Path(a.data).stem}.jsonl"
+    pseudo_path = config.OUT_DIR / (f"pseudo_{Path(a.data).stem}.jsonl" if config.DATA_VERSION == "v1"
+                                    else f"pseudo_{Path(a.data).stem}_{config.DATA_VERSION}.jsonl")   # 버전별 따로 보관
 
     t0 = time.perf_counter()
     rows, mapping, pseudo, collisions = [], {}, [], set()

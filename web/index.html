@@ -84,6 +84,7 @@
   .who{display:block;font-family:'Jua',sans-serif;color:var(--accent);font-size:15px;margin-bottom:2px}
   .tok{display:inline-block;background:var(--chip);color:var(--chip-ink);border-radius:999px;padding:0 8px;margin:1px 0;
        font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82em;line-height:1.7;white-space:nowrap}
+  .tok.restored{background:#DDF3E4;color:#1F6B3A;font-family:inherit}
   .tail{display:block;margin-top:8px;color:var(--ink2);font-size:13px}
   details{margin-top:10px;border-top:1px dashed var(--line);padding-top:8px}
   summary{cursor:pointer;color:var(--ink2);font-size:14px;list-style:none}
@@ -219,7 +220,13 @@ const FOUND = ["어흥! 찾았어요!", "킁킁, 냄새를 따라가 봤어요!"
 const stage = document.getElementById("stage"), speech = document.getElementById("speech");
 const log = document.getElementById("log"), q = document.getElementById("q"), send = document.getElementById("send");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const chips = s => esc(s).replace(/&lt;([A-Z_]+_[0-9a-f]{8})&gt;/g, '<span class="tok">$1</span>');
+// 권한에 따라 서버가 보내 준 표시값(restored)이 있으면 토큰 자리에 넣고, 없으면 가명 토큰을 그대로 보여줍니다.
+// 일부 복원 값의 * 는 &#42; 로 바꿔 답변의 **굵게** 변환과 섞이지 않게 합니다.
+let shown = {};
+const chips = s => esc(s).replace(/&lt;([A-Z_]+_[0-9a-f]{8})&gt;/g, (m, t) => {
+  const r = shown["<" + t + ">"];
+  return r ? `<span class="tok restored" title="${t} · ${r.level === "FULL" ? "전체" : "일부"} 복원">${esc(r.value).replace(/\*/g, "&#42;")}</span>` : `<span class="tok">${t}</span>`;
+});
 const br = s => s.replace(/\n/g, "<br>");
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
@@ -259,6 +266,7 @@ function row(who, html){
 
 // 오른쪽 채팅에 넣을 답변 (LLM 답변은 그대로 표시)
 function answerHtml(res){
+  shown = res.restored || {};
   const docs = res.docs || [], qt = new Set(res.query_tokens || []);
   const list = docs.map((d, i) => {
     const hit = (d.tokens || []).some(t => qt.has(t));
@@ -267,7 +275,7 @@ function answerHtml(res){
   const tokens = [...qt].map(chips).join(" ") || "없음 (의미 검색만 했어요)";
   const body = res.answer ? br(chips(res.answer.trim()).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")) : "LLM 키가 없어서 답변 대신 찾은 자료만 보여드려요.";
   return `<span class="who">🦁 어흥이</span>${body}
-    <span class="tail">💡 주황색 이름표는 개인정보를 숨긴 표시예요.</span>
+    <span class="tail">💡 주황색 이름표는 개인정보를 숨긴 표시예요.${Object.keys(shown).length ? " 초록색은 권한에 따라 원래 값(전체 또는 일부)을 보여 준 거예요." : ""}</span>
     <details><summary>어흥이가 찾은 자료 보기 (${docs.length}건)</summary>
       <div class="meta">가명처리된 질문: ${chips(res.masked_query)}</div>
       <div class="meta">질문 속 이름표: ${tokens}</div>${list}</details>`;

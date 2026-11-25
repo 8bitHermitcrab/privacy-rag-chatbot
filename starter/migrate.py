@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 
 
 TABLES = {
-    "auth": ["employee_info", "permission_change_log", "role_info", "team_info", "user_info", "team_position_policy"],
+    "auth": ["employee_info", "permission_change_log", "role_info", "team_info", "user_info", "team_position_policy", "restore_log", "data_version"],
     "rag": ["chunks", "document_info"], "vault": ["person", "token_map", "person_mention"],
 }
 

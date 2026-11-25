@@ -420,6 +420,20 @@ class BusinessTest(unittest.TestCase):
             with self.assertRaises(psycopg.errors.CheckViolation):
                 with self.conn.transaction():self.conn.execute(sql,(team,))
 
+    def test_20c_restore_log_append_only(self):
+        user={'user_id':self.admin_id,'team_id':None,'position_code':None}
+        b.write_restore_log(user,['H0001'],['<PERSON_aaaa1111>'],{'person':'FULL'})
+        r=self.conn.execute('SELECT * FROM auth.restore_log WHERE user_id=%s ORDER BY log_id DESC LIMIT 1',(self.admin_id,)).fetchone()
+        self.assertEqual((r['doc_ids'],r['tokens'],r['levels']),(['H0001'],['<PERSON_aaaa1111>'],{'person':'FULL'}))
+        # 업무 계정은 기록을 고치거나 지울 수 없고, 빈 토큰 기록은 DB가 거부
+        import psycopg
+        for sql,err in (('UPDATE auth.restore_log SET tokens=tokens WHERE log_id=%s',psycopg.errors.InsufficientPrivilege),
+                        ('DELETE FROM auth.restore_log WHERE log_id=%s',psycopg.errors.InsufficientPrivilege)):
+            with self.assertRaises(err):
+                with self.conn.transaction():self.conn.execute(sql,(r['log_id'],))
+        with self.assertRaises(psycopg.errors.CheckViolation):
+            with self.conn.transaction():b.write_restore_log(user,[],[],{})
+
     def test_21_batch_requires_manager(self):
         emp='batch-staff-'+self.suffix
         self.conn.execute('INSERT INTO auth.employee_info(employee_id) VALUES (%s)',(emp,))

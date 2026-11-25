@@ -7,7 +7,8 @@
                   http://127.0.0.1:8000/simple  (심플 버전)
 
 - 검색·답변은 app.py 와 같은 starter.chat.answer 를 그대로 사용 (프롬프트 ③, SEARCH_MODE=v3)
-- 화면에는 가명처리된 질의·문서·답변만 보내고, 토큰은 복원하지 않습니다
+- 화면에는 가명처리된 질의·문서·답변을 보내고, 팀·직책 정책이 허용한 토큰만 restored 로 표시값을 함께 보냅니다
+  (LLM 에는 항상 가명처리된 글만 갑니다. 복원할 때마다 auth.restore_log 에 기록합니다)
 - 기본 주소는 127.0.0.1 (내 컴퓨터에서만 접속). 다른 기기에서 열 때만 --host 0.0.0.0
 """
 import os
@@ -26,11 +27,16 @@ from starter.chat import answer
 from starter.search import SEARCH_MODE
 
 from starter.migrate import migrate
-from starter.business_admin import router as business_router, allowed_documents, current, connection
+from starter.data_version import verify_runtime
+from starter.business_admin import (router as business_router, chat_access, current, connection,
+    restore_of, write_restore_log)
+from starter import restore
 
 @asynccontextmanager
 async def lifespan(app):
     await run_in_threadpool(migrate)
+    # .env 의 HMAC_KEY 와 DATA_VERSION 이 짝이 맞지 않으면 시작하지 않습니다. (키 교체 중 잘못된 설정 차단)
+    await run_in_threadpool(verify_runtime)
     yield
 
 app = FastAPI(title="가명처리 검색 챗봇", lifespan=lifespan)
@@ -64,12 +70,13 @@ def simple(request: Request):
 
 @app.get("/api/info")
 def info():
-    return {"search_mode": SEARCH_MODE, "embed_model": config.EMBED_MODEL, "llm_model": config.LLM_MODEL}
+    return {"search_mode": SEARCH_MODE, "embed_model": config.EMBED_MODEL, "llm_model": config.LLM_MODEL,
+            "data_version": config.DATA_VERSION}
 
 
 @app.post("/api/chat")
 def chat(req: Ask, request: Request):            # 일반 def → FastAPI가 스레드에서 실행 (탐지·API 호출이 블로킹이라)
-    allowed = allowed_documents(request)
+    user, allowed = chat_access(request)
     if not allowed:
         raise HTTPException(403, '검색 가능한 확정 문서가 없습니다. 직원·팀·문서 권한을 확인하세요.')
     q = req.query.strip()
@@ -84,13 +91,32 @@ def chat(req: Ask, request: Request):            # 일반 def → FastAPI가 스
         return {"error": f"API 오류 ({code}). 터미널 로그를 확인해 주세요."}
     except requests.exceptions.RequestException:
         return {"error": "API에 연결하지 못했어요. 네트워크와 .env 설정을 확인해 주세요."}
+    docs = [{"doc_id": d["doc_id"], "score": round(float(d["score"]), 3), "tokens": d["tokens"],
+             "masked_text": d["masked_text"][:600]} for d in res["docs"]]
     return {
         "answer": res["answer"],
         "masked_query": res["masked_query"],
         "query_tokens": res["query_tokens"],
-        "docs": [{"doc_id": d["doc_id"], "score": round(float(d["score"]), 3), "tokens": d["tokens"],
-                  "masked_text": d["masked_text"][:600]} for d in res["docs"]],
+        "docs": docs,
+        "restored": restored_values(user, res, docs),
     }
+
+
+def restored_values(user, res, docs):
+    """정책이 허용한 토큰의 표시값. 기록을 먼저 남기고, 기록이 실패하면 아무것도 복원하지 않습니다."""
+    levels = restore_of(user)
+    if all(v == 'NONE' for v in levels.values()):
+        return {}
+    tokens = restore.tokens_in(res["answer"], res["masked_query"], *(d["masked_text"] for d in docs))
+    try:
+        shown = restore.restore_map(tokens, levels, restore.fetch_from_vault)
+        if shown:
+            write_restore_log(user, [d["doc_id"] for d in docs], list(shown), restore.summary(shown))
+        return shown
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception('복원 처리 실패: 가명 그대로 응답합니다')
+        return {}
 
 
 @app.get('/admin-assets/business_admin.js')

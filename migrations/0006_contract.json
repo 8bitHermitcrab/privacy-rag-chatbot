@@ -1,0 +1,1439 @@
+{
+  "auth.employee_info": {
+    "columns": [
+      [
+        "employee_id",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "name_token",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "team_id",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "position_code",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "verification_status",
+        "text",
+        true,
+        "'PENDING'::text",
+        ""
+      ],
+      [
+        "created_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ],
+      [
+        "updated_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "employee_info_check",
+        "CHECK (((verification_status <> 'CONFIRMED'::text) OR (team_id IS NOT NULL)))"
+      ],
+      [
+        "employee_info_employee_id_check",
+        "CHECK ((btrim(employee_id) <> ''::text))"
+      ],
+      [
+        "employee_info_pkey",
+        "PRIMARY KEY (employee_id)"
+      ],
+      [
+        "employee_info_team_id_fkey",
+        "FOREIGN KEY (team_id) REFERENCES auth.team_info(team_id)"
+      ],
+      [
+        "employee_info_verification_status_check",
+        "CHECK ((verification_status = ANY (ARRAY['PENDING'::text, 'CONFIRMED'::text, 'REVIEW_REQUIRED'::text])))"
+      ]
+    ],
+    "indexes": [
+      [
+        "employee_info_pkey",
+        "CREATE UNIQUE INDEX employee_info_pkey ON auth.employee_info USING btree (employee_id)"
+      ],
+      [
+        "ix_employee_team",
+        "CREATE INDEX ix_employee_team ON auth.employee_info USING btree (team_id)"
+      ]
+    ],
+    "triggers": [
+      [
+        "trg_set_updated_at",
+        "CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON auth.employee_info FOR EACH ROW EXECUTE FUNCTION auth.set_updated_at()"
+      ]
+    ]
+  },
+  "auth.permission_change_log": {
+    "columns": [
+      [
+        "log_id",
+        "bigint",
+        true,
+        "",
+        "a"
+      ],
+      [
+        "actor_user_id",
+        "bigint",
+        true,
+        "",
+        ""
+      ],
+      [
+        "target_user_id",
+        "bigint",
+        false,
+        "",
+        ""
+      ],
+      [
+        "target_role_code",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "action",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "before_value",
+        "jsonb",
+        false,
+        "",
+        ""
+      ],
+      [
+        "after_value",
+        "jsonb",
+        false,
+        "",
+        ""
+      ],
+      [
+        "reason",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "changed_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "permission_change_log_action_check",
+        "CHECK ((btrim(action) <> ''::text))"
+      ],
+      [
+        "permission_change_log_actor_user_id_fkey",
+        "FOREIGN KEY (actor_user_id) REFERENCES auth.user_info(user_id)"
+      ],
+      [
+        "permission_change_log_after_value_check",
+        "CHECK (((after_value IS NULL) OR (jsonb_typeof(after_value) = 'object'::text)))"
+      ],
+      [
+        "permission_change_log_after_value_check1",
+        "CHECK (((after_value IS NULL) OR (NOT (after_value ?| ARRAY['password'::text, 'pw'::text, 'password_hash'::text, 'hmac_key'::text, 'api_key'::text]))))"
+      ],
+      [
+        "permission_change_log_before_value_check",
+        "CHECK (((before_value IS NULL) OR (jsonb_typeof(before_value) = 'object'::text)))"
+      ],
+      [
+        "permission_change_log_before_value_check1",
+        "CHECK (((before_value IS NULL) OR (NOT (before_value ?| ARRAY['password'::text, 'pw'::text, 'password_hash'::text, 'hmac_key'::text, 'api_key'::text]))))"
+      ],
+      [
+        "permission_change_log_check",
+        "CHECK (((target_user_id IS NOT NULL) OR (target_role_code IS NOT NULL)))"
+      ],
+      [
+        "permission_change_log_pkey",
+        "PRIMARY KEY (log_id)"
+      ],
+      [
+        "permission_change_log_reason_check",
+        "CHECK ((btrim(reason) <> ''::text))"
+      ],
+      [
+        "permission_change_log_target_role_code_fkey",
+        "FOREIGN KEY (target_role_code) REFERENCES auth.role_info(role_code)"
+      ],
+      [
+        "permission_change_log_target_user_id_fkey",
+        "FOREIGN KEY (target_user_id) REFERENCES auth.user_info(user_id)"
+      ]
+    ],
+    "indexes": [
+      [
+        "ix_permission_log_actor_time",
+        "CREATE INDEX ix_permission_log_actor_time ON auth.permission_change_log USING btree (actor_user_id, changed_at)"
+      ],
+      [
+        "ix_permission_log_target_time",
+        "CREATE INDEX ix_permission_log_target_time ON auth.permission_change_log USING btree (target_user_id, changed_at)"
+      ],
+      [
+        "permission_change_log_pkey",
+        "CREATE UNIQUE INDEX permission_change_log_pkey ON auth.permission_change_log USING btree (log_id)"
+      ]
+    ],
+    "triggers": []
+  },
+  "auth.role_info": {
+    "columns": [
+      [
+        "role_code",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "role_name",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "search_scope",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "can_restore",
+        "boolean",
+        true,
+        "false",
+        ""
+      ],
+      [
+        "can_manage_users",
+        "boolean",
+        true,
+        "false",
+        ""
+      ],
+      [
+        "created_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ],
+      [
+        "updated_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "role_info_check",
+        "CHECK (((NOT can_restore) OR (search_scope <> 'NONE'::text)))"
+      ],
+      [
+        "role_info_pkey",
+        "PRIMARY KEY (role_code)"
+      ],
+      [
+        "role_info_role_code_check",
+        "CHECK ((role_code = ANY (ARRAY['STAFF'::text, 'TEAM_LEAD'::text, 'ADMIN'::text])))"
+      ],
+      [
+        "role_info_role_name_check",
+        "CHECK ((btrim(role_name) <> ''::text))"
+      ],
+      [
+        "role_info_search_scope_check",
+        "CHECK ((search_scope = ANY (ARRAY['OWN'::text, 'TEAM'::text, 'NONE'::text])))"
+      ]
+    ],
+    "indexes": [
+      [
+        "role_info_pkey",
+        "CREATE UNIQUE INDEX role_info_pkey ON auth.role_info USING btree (role_code)"
+      ]
+    ],
+    "triggers": [
+      [
+        "trg_set_updated_at",
+        "CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON auth.role_info FOR EACH ROW EXECUTE FUNCTION auth.set_updated_at()"
+      ]
+    ]
+  },
+  "auth.team_info": {
+    "columns": [
+      [
+        "team_id",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "team_name",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "is_active",
+        "boolean",
+        true,
+        "true",
+        ""
+      ],
+      [
+        "created_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ],
+      [
+        "updated_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "team_info_pkey",
+        "PRIMARY KEY (team_id)"
+      ],
+      [
+        "team_info_team_id_check",
+        "CHECK ((btrim(team_id) <> ''::text))"
+      ],
+      [
+        "team_info_team_name_check",
+        "CHECK ((btrim(team_name) <> ''::text))"
+      ],
+      [
+        "team_info_team_name_key",
+        "UNIQUE (team_name)"
+      ]
+    ],
+    "indexes": [
+      [
+        "team_info_pkey",
+        "CREATE UNIQUE INDEX team_info_pkey ON auth.team_info USING btree (team_id)"
+      ],
+      [
+        "team_info_team_name_key",
+        "CREATE UNIQUE INDEX team_info_team_name_key ON auth.team_info USING btree (team_name)"
+      ]
+    ],
+    "triggers": [
+      [
+        "trg_set_updated_at",
+        "CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON auth.team_info FOR EACH ROW EXECUTE FUNCTION auth.set_updated_at()"
+      ]
+    ]
+  },
+  "auth.user_info": {
+    "columns": [
+      [
+        "user_id",
+        "bigint",
+        true,
+        "",
+        "a"
+      ],
+      [
+        "login_id",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "password_hash",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "employee_id",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "role_code",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "status",
+        "text",
+        true,
+        "'ACTIVE'::text",
+        ""
+      ],
+      [
+        "must_change_password",
+        "boolean",
+        true,
+        "true",
+        ""
+      ],
+      [
+        "last_login_at",
+        "timestamp with time zone",
+        false,
+        "",
+        ""
+      ],
+      [
+        "password_changed_at",
+        "timestamp with time zone",
+        false,
+        "",
+        ""
+      ],
+      [
+        "user_dfn_01",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "user_dfn_02",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "user_dfn_03",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "user_dfn_04",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "user_dfn_05",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "created_by",
+        "bigint",
+        false,
+        "",
+        ""
+      ],
+      [
+        "created_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ],
+      [
+        "updated_by",
+        "bigint",
+        false,
+        "",
+        ""
+      ],
+      [
+        "updated_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ],
+      [
+        "can_review_persons",
+        "boolean",
+        true,
+        "false",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "user_info_check",
+        "CHECK (((role_code = 'ADMIN'::text) OR (employee_id IS NOT NULL)))"
+      ],
+      [
+        "user_info_created_by_fkey",
+        "FOREIGN KEY (created_by) REFERENCES auth.user_info(user_id)"
+      ],
+      [
+        "user_info_employee_id_fkey",
+        "FOREIGN KEY (employee_id) REFERENCES auth.employee_info(employee_id)"
+      ],
+      [
+        "user_info_employee_id_key",
+        "UNIQUE (employee_id)"
+      ],
+      [
+        "user_info_login_id_check",
+        "CHECK ((btrim(login_id) <> ''::text))"
+      ],
+      [
+        "user_info_login_id_key",
+        "UNIQUE (login_id)"
+      ],
+      [
+        "user_info_password_hash_check",
+        "CHECK ((btrim(password_hash) <> ''::text))"
+      ],
+      [
+        "user_info_pkey",
+        "PRIMARY KEY (user_id)"
+      ],
+      [
+        "user_info_role_code_fkey",
+        "FOREIGN KEY (role_code) REFERENCES auth.role_info(role_code)"
+      ],
+      [
+        "user_info_status_check",
+        "CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'DORMANT'::text, 'LOCKED'::text, 'RETIRED'::text])))"
+      ],
+      [
+        "user_info_updated_by_fkey",
+        "FOREIGN KEY (updated_by) REFERENCES auth.user_info(user_id)"
+      ]
+    ],
+    "indexes": [
+      [
+        "ix_user_role",
+        "CREATE INDEX ix_user_role ON auth.user_info USING btree (role_code)"
+      ],
+      [
+        "user_info_employee_id_key",
+        "CREATE UNIQUE INDEX user_info_employee_id_key ON auth.user_info USING btree (employee_id)"
+      ],
+      [
+        "user_info_login_id_key",
+        "CREATE UNIQUE INDEX user_info_login_id_key ON auth.user_info USING btree (login_id)"
+      ],
+      [
+        "user_info_pkey",
+        "CREATE UNIQUE INDEX user_info_pkey ON auth.user_info USING btree (user_id)"
+      ]
+    ],
+    "triggers": [
+      [
+        "trg_set_updated_at",
+        "CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON auth.user_info FOR EACH ROW EXECUTE FUNCTION auth.set_updated_at()"
+      ]
+    ]
+  },
+  "auth.team_position_policy": {
+    "columns": [
+      [
+        "team_id",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "position_code",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "search_scope",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "can_restore",
+        "boolean",
+        true,
+        "false",
+        ""
+      ],
+      [
+        "restore_person",
+        "text",
+        true,
+        "'NONE'::text",
+        ""
+      ],
+      [
+        "restore_phone",
+        "text",
+        true,
+        "'NONE'::text",
+        ""
+      ],
+      [
+        "restore_email",
+        "text",
+        true,
+        "'NONE'::text",
+        ""
+      ],
+      [
+        "restore_address",
+        "text",
+        true,
+        "'NONE'::text",
+        ""
+      ],
+      [
+        "restore_rrn",
+        "text",
+        true,
+        "'NONE'::text",
+        ""
+      ],
+      [
+        "restore_account",
+        "text",
+        true,
+        "'NONE'::text",
+        ""
+      ],
+      [
+        "restore_card",
+        "text",
+        true,
+        "'NONE'::text",
+        ""
+      ],
+      [
+        "created_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ],
+      [
+        "updated_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "ck_policy_restore_account",
+        "CHECK ((restore_account = ANY (ARRAY['NONE'::text, 'PARTIAL'::text])))"
+      ],
+      [
+        "ck_policy_restore_address",
+        "CHECK ((restore_address = ANY (ARRAY['NONE'::text, 'PARTIAL'::text, 'FULL'::text])))"
+      ],
+      [
+        "ck_policy_restore_card",
+        "CHECK ((restore_card = ANY (ARRAY['NONE'::text, 'PARTIAL'::text])))"
+      ],
+      [
+        "ck_policy_restore_email",
+        "CHECK ((restore_email = ANY (ARRAY['NONE'::text, 'PARTIAL'::text, 'FULL'::text])))"
+      ],
+      [
+        "ck_policy_restore_needs_switch",
+        "CHECK ((can_restore OR ((restore_person = 'NONE'::text) AND (restore_phone = 'NONE'::text) AND (restore_email = 'NONE'::text) AND (restore_address = 'NONE'::text) AND (restore_rrn = 'NONE'::text) AND (restore_account = 'NONE'::text) AND (restore_card = 'NONE'::text))))"
+      ],
+      [
+        "ck_policy_restore_person",
+        "CHECK ((restore_person = ANY (ARRAY['NONE'::text, 'PARTIAL'::text, 'FULL'::text])))"
+      ],
+      [
+        "ck_policy_restore_phone",
+        "CHECK ((restore_phone = ANY (ARRAY['NONE'::text, 'PARTIAL'::text, 'FULL'::text])))"
+      ],
+      [
+        "ck_policy_restore_rrn",
+        "CHECK ((restore_rrn = ANY (ARRAY['NONE'::text, 'PARTIAL'::text])))"
+      ],
+      [
+        "team_position_policy_check",
+        "CHECK (((NOT can_restore) OR (search_scope <> 'NONE'::text)))"
+      ],
+      [
+        "team_position_policy_pkey",
+        "PRIMARY KEY (team_id, position_code)"
+      ],
+      [
+        "team_position_policy_position_code_check",
+        "CHECK ((btrim(position_code) <> ''::text))"
+      ],
+      [
+        "team_position_policy_search_scope_check",
+        "CHECK ((search_scope = ANY (ARRAY['OWN'::text, 'TEAM'::text, 'NONE'::text])))"
+      ],
+      [
+        "team_position_policy_team_id_fkey",
+        "FOREIGN KEY (team_id) REFERENCES auth.team_info(team_id)"
+      ]
+    ],
+    "indexes": [
+      [
+        "team_position_policy_pkey",
+        "CREATE UNIQUE INDEX team_position_policy_pkey ON auth.team_position_policy USING btree (team_id, position_code)"
+      ]
+    ],
+    "triggers": [
+      [
+        "trg_team_position_policy_updated_at",
+        "CREATE TRIGGER trg_team_position_policy_updated_at BEFORE UPDATE ON auth.team_position_policy FOR EACH ROW EXECUTE FUNCTION auth.set_updated_at()"
+      ]
+    ]
+  },
+  "rag.chunks": {
+    "columns": [
+      [
+        "chunk_id",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "doc_id",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "chunk_idx",
+        "integer",
+        true,
+        "",
+        ""
+      ],
+      [
+        "doc_type",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "masked_text",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "tokens",
+        "text[]",
+        true,
+        "'{}'::text[]",
+        ""
+      ],
+      [
+        "embedding",
+        "vector(1024)",
+        true,
+        "",
+        ""
+      ],
+      [
+        "created_at",
+        "timestamp with time zone",
+        false,
+        "now()",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "chunks_pkey",
+        "PRIMARY KEY (chunk_id)"
+      ],
+      [
+        "ck_chunks_index_nonnegative",
+        "CHECK ((chunk_idx >= 0))"
+      ],
+      [
+        "fk_chunks_document_info",
+        "FOREIGN KEY (doc_id) REFERENCES rag.document_info(document_id)"
+      ],
+      [
+        "uq_chunks_document_index",
+        "UNIQUE (doc_id, chunk_idx)"
+      ]
+    ],
+    "indexes": [
+      [
+        "chunks_doc_id",
+        "CREATE INDEX chunks_doc_id ON rag.chunks USING btree (doc_id)"
+      ],
+      [
+        "chunks_embedding_hnsw",
+        "CREATE INDEX chunks_embedding_hnsw ON rag.chunks USING hnsw (embedding vector_cosine_ops)"
+      ],
+      [
+        "chunks_pkey",
+        "CREATE UNIQUE INDEX chunks_pkey ON rag.chunks USING btree (chunk_id)"
+      ],
+      [
+        "chunks_tokens_gin",
+        "CREATE INDEX chunks_tokens_gin ON rag.chunks USING gin (tokens)"
+      ],
+      [
+        "uq_chunks_document_index",
+        "CREATE UNIQUE INDEX uq_chunks_document_index ON rag.chunks USING btree (doc_id, chunk_idx)"
+      ]
+    ],
+    "triggers": []
+  },
+  "rag.document_info": {
+    "columns": [
+      [
+        "document_id",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "document_type",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "owner_employee_id",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "team_id",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "metadata_status",
+        "text",
+        true,
+        "'PENDING'::text",
+        ""
+      ],
+      [
+        "created_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ],
+      [
+        "updated_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "document_info_check",
+        "CHECK (((metadata_status <> 'CONFIRMED'::text) OR ((owner_employee_id IS NOT NULL) AND (team_id IS NOT NULL))))"
+      ],
+      [
+        "document_info_document_id_check",
+        "CHECK ((btrim(document_id) <> ''::text))"
+      ],
+      [
+        "document_info_metadata_status_check",
+        "CHECK ((metadata_status = ANY (ARRAY['PENDING'::text, 'CONFIRMED'::text, 'REVIEW_REQUIRED'::text])))"
+      ],
+      [
+        "document_info_owner_employee_id_fkey",
+        "FOREIGN KEY (owner_employee_id) REFERENCES auth.employee_info(employee_id)"
+      ],
+      [
+        "document_info_pkey",
+        "PRIMARY KEY (document_id)"
+      ],
+      [
+        "document_info_team_id_fkey",
+        "FOREIGN KEY (team_id) REFERENCES auth.team_info(team_id)"
+      ]
+    ],
+    "indexes": [
+      [
+        "document_info_pkey",
+        "CREATE UNIQUE INDEX document_info_pkey ON rag.document_info USING btree (document_id)"
+      ],
+      [
+        "ix_document_owner_confirmed",
+        "CREATE INDEX ix_document_owner_confirmed ON rag.document_info USING btree (owner_employee_id) WHERE (metadata_status = 'CONFIRMED'::text)"
+      ],
+      [
+        "ix_document_team_confirmed",
+        "CREATE INDEX ix_document_team_confirmed ON rag.document_info USING btree (team_id) WHERE (metadata_status = 'CONFIRMED'::text)"
+      ]
+    ],
+    "triggers": [
+      [
+        "trg_set_updated_at",
+        "CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON rag.document_info FOR EACH ROW EXECUTE FUNCTION auth.set_updated_at()"
+      ]
+    ]
+  },
+  "vault.person": {
+    "columns": [
+      [
+        "pid",
+        "bigint",
+        true,
+        "",
+        "a"
+      ],
+      [
+        "data1",
+        "text[]",
+        false,
+        "",
+        ""
+      ],
+      [
+        "data2",
+        "text[]",
+        false,
+        "",
+        ""
+      ],
+      [
+        "data3",
+        "text[]",
+        false,
+        "",
+        ""
+      ],
+      [
+        "data4",
+        "text[]",
+        false,
+        "",
+        ""
+      ],
+      [
+        "data5",
+        "text[]",
+        false,
+        "",
+        ""
+      ],
+      [
+        "data6",
+        "text[]",
+        false,
+        "",
+        ""
+      ],
+      [
+        "data7",
+        "text[]",
+        false,
+        "",
+        ""
+      ],
+      [
+        "created_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ],
+      [
+        "updated_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "ck_person_has_at_least_one_token",
+        "CHECK ((((((((COALESCE(cardinality(array_remove(data1, NULL::text)), 0) + COALESCE(cardinality(array_remove(data2, NULL::text)), 0)) + COALESCE(cardinality(array_remove(data3, NULL::text)), 0)) + COALESCE(cardinality(array_remove(data4, NULL::text)), 0)) + COALESCE(cardinality(array_remove(data5, NULL::text)), 0)) + COALESCE(cardinality(array_remove(data6, NULL::text)), 0)) + COALESCE(cardinality(array_remove(data7, NULL::text)), 0)) > 0))"
+      ],
+      [
+        "person_pkey",
+        "PRIMARY KEY (pid)"
+      ]
+    ],
+    "indexes": [
+      [
+        "person_pkey",
+        "CREATE UNIQUE INDEX person_pkey ON vault.person USING btree (pid)"
+      ]
+    ],
+    "triggers": [
+      [
+        "trg_person_set_updated_at",
+        "CREATE TRIGGER trg_person_set_updated_at BEFORE UPDATE ON vault.person FOR EACH ROW EXECUTE FUNCTION vault.set_person_updated_at()"
+      ]
+    ]
+  },
+  "vault.token_map": {
+    "columns": [
+      [
+        "token",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "label",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "normalized",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "originals",
+        "text[]",
+        true,
+        "'{}'::text[]",
+        ""
+      ],
+      [
+        "created_at",
+        "timestamp with time zone",
+        false,
+        "now()",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "token_map_pkey",
+        "PRIMARY KEY (token)"
+      ]
+    ],
+    "indexes": [
+      [
+        "token_map_pkey",
+        "CREATE UNIQUE INDEX token_map_pkey ON vault.token_map USING btree (token)"
+      ]
+    ],
+    "triggers": []
+  },
+  "vault.person_mention": {
+    "columns": [
+      [
+        "mention_id",
+        "bigint",
+        true,
+        "",
+        "a"
+      ],
+      [
+        "doc_id",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "owner_key",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "role",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "name_token",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "data1",
+        "text[]",
+        true,
+        "'{}'::text[]",
+        ""
+      ],
+      [
+        "data2",
+        "text[]",
+        true,
+        "'{}'::text[]",
+        ""
+      ],
+      [
+        "data3",
+        "text[]",
+        true,
+        "'{}'::text[]",
+        ""
+      ],
+      [
+        "data4",
+        "text[]",
+        true,
+        "'{}'::text[]",
+        ""
+      ],
+      [
+        "data5",
+        "text[]",
+        true,
+        "'{}'::text[]",
+        ""
+      ],
+      [
+        "data6",
+        "text[]",
+        true,
+        "'{}'::text[]",
+        ""
+      ],
+      [
+        "data7",
+        "text[]",
+        true,
+        "'{}'::text[]",
+        ""
+      ],
+      [
+        "pid",
+        "bigint",
+        false,
+        "",
+        ""
+      ],
+      [
+        "status",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "reason",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "decided_by",
+        "text",
+        true,
+        "'auto'::text",
+        ""
+      ],
+      [
+        "review_note",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "reviewed_at",
+        "timestamp with time zone",
+        false,
+        "",
+        ""
+      ],
+      [
+        "policy_version",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "sensitivity",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "source_hash",
+        "text",
+        true,
+        "",
+        ""
+      ],
+      [
+        "created_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ],
+      [
+        "updated_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "person_mention_check",
+        "CHECK (((name_token IS NULL) = (owner_key ~~ 'orphan|%'::text)))"
+      ],
+      [
+        "person_mention_check1",
+        "CHECK (((status <> ALL (ARRAY['linked'::text, 'created'::text, 'manual_linked'::text, 'manual_created'::text])) OR (pid IS NOT NULL)))"
+      ],
+      [
+        "person_mention_check2",
+        "CHECK (((decided_by = 'manual'::text) = ((status ~~ 'manual\\_%'::text) OR (status = ANY (ARRAY['shared'::text, 'dismissed'::text])))))"
+      ],
+      [
+        "person_mention_decided_by_check",
+        "CHECK ((decided_by = ANY (ARRAY['auto'::text, 'manual'::text])))"
+      ],
+      [
+        "person_mention_doc_id_check",
+        "CHECK ((btrim(doc_id) <> ''::text))"
+      ],
+      [
+        "person_mention_doc_id_owner_key_key",
+        "UNIQUE (doc_id, owner_key)"
+      ],
+      [
+        "person_mention_owner_key_check",
+        "CHECK ((btrim(owner_key) <> ''::text))"
+      ],
+      [
+        "person_mention_pid_fkey",
+        "FOREIGN KEY (pid) REFERENCES vault.person(pid) ON DELETE SET NULL"
+      ],
+      [
+        "person_mention_pkey",
+        "PRIMARY KEY (mention_id)"
+      ],
+      [
+        "person_mention_reason_check",
+        "CHECK ((btrim(reason) <> ''::text))"
+      ],
+      [
+        "person_mention_sensitivity_check",
+        "CHECK ((sensitivity = ANY (ARRAY['strict'::text, 'balanced'::text, 'relaxed'::text])))"
+      ],
+      [
+        "person_mention_status_check",
+        "CHECK ((status = ANY (ARRAY['linked'::text, 'created'::text, 'held'::text, 'manual_linked'::text, 'manual_created'::text, 'shared'::text, 'dismissed'::text])))"
+      ]
+    ],
+    "indexes": [
+      [
+        "person_mention_doc_id_owner_key_key",
+        "CREATE UNIQUE INDEX person_mention_doc_id_owner_key_key ON vault.person_mention USING btree (doc_id, owner_key)"
+      ],
+      [
+        "person_mention_name_token_idx",
+        "CREATE INDEX person_mention_name_token_idx ON vault.person_mention USING btree (name_token)"
+      ],
+      [
+        "person_mention_pid_idx",
+        "CREATE INDEX person_mention_pid_idx ON vault.person_mention USING btree (pid)"
+      ],
+      [
+        "person_mention_pkey",
+        "CREATE UNIQUE INDEX person_mention_pkey ON vault.person_mention USING btree (mention_id)"
+      ],
+      [
+        "person_mention_review_idx",
+        "CREATE INDEX person_mention_review_idx ON vault.person_mention USING btree (status) WHERE (status = 'held'::text)"
+      ]
+    ],
+    "triggers": [
+      [
+        "trg_person_mention_set_updated_at",
+        "CREATE TRIGGER trg_person_mention_set_updated_at BEFORE UPDATE ON vault.person_mention FOR EACH ROW EXECUTE FUNCTION vault.set_person_updated_at()"
+      ]
+    ]
+  },
+  "auth.restore_log": {
+    "columns": [
+      [
+        "log_id",
+        "bigint",
+        true,
+        "",
+        "a"
+      ],
+      [
+        "user_id",
+        "bigint",
+        true,
+        "",
+        ""
+      ],
+      [
+        "team_id",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "position_code",
+        "text",
+        false,
+        "",
+        ""
+      ],
+      [
+        "doc_ids",
+        "text[]",
+        true,
+        "'{}'::text[]",
+        ""
+      ],
+      [
+        "tokens",
+        "text[]",
+        true,
+        "",
+        ""
+      ],
+      [
+        "levels",
+        "jsonb",
+        true,
+        "",
+        ""
+      ],
+      [
+        "created_at",
+        "timestamp with time zone",
+        true,
+        "now()",
+        ""
+      ]
+    ],
+    "constraints": [
+      [
+        "restore_log_levels_check",
+        "CHECK ((jsonb_typeof(levels) = 'object'::text))"
+      ],
+      [
+        "restore_log_pkey",
+        "PRIMARY KEY (log_id)"
+      ],
+      [
+        "restore_log_tokens_check",
+        "CHECK ((cardinality(tokens) > 0))"
+      ],
+      [
+        "restore_log_user_id_fkey",
+        "FOREIGN KEY (user_id) REFERENCES auth.user_info(user_id)"
+      ]
+    ],
+    "indexes": [
+      [
+        "ix_restore_log_user_time",
+        "CREATE INDEX ix_restore_log_user_time ON auth.restore_log USING btree (user_id, created_at)"
+      ],
+      [
+        "restore_log_pkey",
+        "CREATE UNIQUE INDEX restore_log_pkey ON auth.restore_log USING btree (log_id)"
+      ]
+    ],
+    "triggers": []
+  },
+  "functions": [
+    [
+      "auth.set_updated_at()",
+      "CREATE OR REPLACE FUNCTION auth.set_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    NEW.updated_at := now();\n    RETURN NEW;\nEND;\n$function$\n"
+    ],
+    [
+      "vault.set_person_updated_at()",
+      "CREATE OR REPLACE FUNCTION vault.set_person_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    NEW.updated_at := now();\n    RETURN NEW;\nEND;\n$function$\n"
+    ]
+  ]
+}

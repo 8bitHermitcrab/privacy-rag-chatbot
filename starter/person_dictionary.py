@@ -17,7 +17,9 @@ class PersonDictionaryError(ValueError):
 
 def report_dir():
     from server_admin.security import state_dir
-    return Path(os.getenv('PID_REPORT_DIR',str(state_dir()/'person_dictionary')))
+    # 판정 캐시(state.json)는 토큰 기준이라 데이터 버전(키)마다 따로 둡니다. v1 은 기존 위치 그대로.
+    name='person_dictionary' if config.DATA_VERSION=='v1' else 'person_dictionary_'+config.DATA_VERSION
+    return Path(os.getenv('PID_REPORT_DIR',str(state_dir()/name)))
 
 
 def read_json(path,default):
@@ -335,7 +337,14 @@ def main():
     parser.add_argument('--sensitivity',choices=tuple(PROFILES),default=os.getenv('PID_SENSITIVITY','balanced'))
     parser.add_argument('--source',type=Path,help='원문 JSONL 경로 (id/text 사용)')
     parser.add_argument('--plan',help='직전 미리보기의 plan 값')
+    parser.add_argument('--data-version',default=config.DATA_VERSION,help='대상 데이터 버전 (기본: .env 의 DATA_VERSION)')
+    parser.add_argument('--key-env',default='HMAC_KEY',help='가명처리 키가 든 .env 항목 이름 (키 교체 때 NEW_HMAC_KEY)')
     args=parser.parse_args()
+    from .data_version import prepare_target, DataVersionError
+    try:
+        prepare_target(args.data_version,args.key_env)
+    except DataVersionError as error:
+        raise SystemExit('중단: '+str(error))
     result=build_existing(args.apply,lambda p:print(json.dumps(p,ensure_ascii=False),flush=True) if p['done']%20==0 or p['done']==p['total'] else None,sensitivity=args.sensitivity,source=args.source,expected_plan=args.plan)
     print(json.dumps({k:v for k,v in result.items() if k!='events'},ensure_ascii=False,indent=2))
 
