@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>권한이 없어요 · 어흥이</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{--card:#FFFDF8;--ink:#4A2E14;--ink2:#7A5634;--accent:#E26D2C;--mane2:#C9671A}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px 16px;
+       background:radial-gradient(circle at 50% 100%,#FFD58F 0,#FCE5BC 45%,#FBDDA8 100%);
+       color:var(--ink);font-family:'Gowun Dodum','Apple SD Gothic Neo','Malgun Gothic',sans-serif;word-break:keep-all}
+  main{width:100%;max-width:460px;background:var(--card);border:3px solid var(--ink);border-radius:26px;padding:32px 26px 26px;
+       box-shadow:0 7px 0 rgba(74,46,20,.18);text-align:center}
+  .icon{font-size:44px;line-height:1}
+  h1{margin:12px 0 8px;font-family:'Jua',sans-serif;font-weight:400;font-size:28px}
+  p{margin:0;color:var(--ink2);font-size:16px;line-height:1.7}
+  .who{margin-top:10px;font-size:14px}
+  .btns{margin-top:22px;display:flex;flex-direction:column;gap:10px}
+  .btn{display:block;width:100%;font-family:'Jua',sans-serif;font-size:20px;text-decoration:none;text-align:center;padding:11px 0;
+       border-radius:999px;border:3px solid var(--ink);cursor:pointer}
+  .main{color:#fff;background:var(--accent);box-shadow:0 4px 0 var(--mane2)}
+  .sub{color:var(--ink);background:#FFF1D6;box-shadow:0 4px 0 #E3C79A;font-size:18px}
+  .link{background:none;border:none;font:inherit;font-size:14px;color:var(--ink2);text-decoration:underline;cursor:pointer;margin-top:4px}
+</style>
+</head>
+<body>
+<main>
+  <div class="icon" aria-hidden="true">🦁🔒</div>
+  <h1>여기는 들어갈 수 없어요</h1>
+  <p>관리자 화면은 <b>계정 관리 권한</b>이 있는 계정만 열 수 있어요.<br>권한이 필요하면 업무 관리자에게 요청해 주세요.</p>
+  <p class="who" id="who"></p>
+  <div class="btns">
+    <a class="btn main" href="/start">시작 화면으로</a>
+    <a class="btn sub" href="/chat">챗봇으로</a>
+    <button type="button" class="link" id="switch">다른 계정으로 로그인</button>
+  </div>
+</main>
+<script>
+// 지금 로그인한 아이디 표시, '다른 계정으로 로그인'은 로그아웃 후 /login 으로
+let csrf = '';
+(async () => {
+  try {
+    const r = await fetch('/api/me', {cache: 'no-store'});
+    if (!r.ok) return;
+    const me = await r.json(); csrf = me.csrf;
+    document.getElementById('who').textContent = '현재 계정: ' + me.login_id;
+  } catch {}
+})();
+document.getElementById('switch').onclick = async () => {
+  try { await fetch('/api/logout', {method: 'POST', headers: {'X-CSRF-Token': csrf}}); }
+  finally { location.replace('/login'); }
+};
+</script>
+</body>
+</html>

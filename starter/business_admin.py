@@ -197,6 +197,8 @@ def admin_page(request: Request):
     except HTTPException as error:
         if error.status_code == 401 or (error.status_code == 403 and '초기 비밀번호' in str(error.detail)):
             return RedirectResponse('/login', status_code=303)
+        if error.status_code == 403 and (ROOT / 'web/forbidden.html').exists():   # 관리 권한 없음 → 안내 화면
+            return FileResponse(ROOT / 'web/forbidden.html', status_code=403, headers={'Cache-Control': 'no-store'})
         raise
     return FileResponse(ROOT / 'web/admin.html', headers={'Cache-Control': 'no-store'})
 
