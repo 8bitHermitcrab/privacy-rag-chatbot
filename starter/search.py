@@ -22,6 +22,14 @@ from .embed import embed
 SEARCH_MODE = os.getenv("SEARCH_MODE", "v2")
 TOKEN_WEIGHT = float(os.getenv("SEARCH_TOKEN_WEIGHT", "0.5"))   # v4 가산점 크기
 POOL = int(os.getenv("SEARCH_POOL", "50"))                      # v4 의미 검색 후보 수
+# 필터(권한 문서·토큰 조건)가 붙은 벡터 검색 누락 방지.
+# HNSW 인덱스는 가까운 후보 ef_search(기본 40)개를 먼저 고른 뒤 WHERE 조건을 거르므로, 볼 수 있는 문서가 적으면
+# 결과가 LIMIT 보다 적게(심하면 0건) 나옵니다. pgvector 0.8+ 의 iterative_scan 은 모자라면 인덱스를 더 읽어 채웁니다.
+#   strict_order(기본): 거리 순서를 정확히 지킴 / relaxed_order: 조금 더 빠르나 순서가 약간 바뀔 수 있음 / off: 끄기
+ITERATIVE_SCAN = os.getenv("SEARCH_ITERATIVE_SCAN", "strict_order")
+MAX_SCAN_TUPLES = int(os.getenv("SEARCH_MAX_SCAN_TUPLES", "20000"))   # 한 번 검색에서 더 읽을 최대 행 수
+if ITERATIVE_SCAN not in ("strict_order", "relaxed_order", "off"):
+    raise ValueError("SEARCH_ITERATIVE_SCAN 은 strict_order / relaxed_order / off 중 하나여야 합니다.")
 
 _COLS = "doc_id, chunk_id, masked_text, tokens, 1 - (embedding <=> %s) AS sim"
 
@@ -86,6 +94,12 @@ def mask_query(query):
     return masked, sorted({r["token"] for r in records})
 
 
+def _scan_settings(cur):
+    """이번 트랜잭션의 HNSW 반복 탐색 설정 (SET LOCAL 이라 연결을 돌려받는 다른 코드에는 영향 없음)."""
+    cur.execute("SELECT set_config('hnsw.iterative_scan', %s, true), set_config('hnsw.max_scan_tuples', %s, true)",
+                (ITERATIVE_SCAN, str(MAX_SCAN_TUPLES)))
+
+
 def _fetch(cur, where, params, vec, limit, allowed_doc_ids=None):
     if allowed_doc_ids is not None:
         where += (" AND " if where else "WHERE ") + "doc_id = ANY(%s::text[])"
@@ -120,6 +134,7 @@ def search(query, k=10, conn=None, mode=None, allowed_doc_ids=None):
     conn = conn or db.rag_conn()
     try:
         with conn.cursor() as cur:
+            _scan_settings(cur)
             semantic = _fetch(cur, "", (), vec, max(k * 3, POOL), allowed_doc_ids)
             if mode == "v1" or not q_tokens:
                 docs = _merge([semantic], k)
