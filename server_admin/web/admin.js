@@ -4,7 +4,7 @@ let csrf = "";
 let progressPollTimer=null, progressPollPending=false, controlRequestPending=false;
 const events = {manager_start:"관리 프로그램 시작",drain_timeout_change:"중지·재시작 대기 시간 변경",account_setup:"관리 계정 설정",monitor_setup:"DB 조회 계정 준비",login:"관리자 로그인",logout:"관리자 로그아웃",password_change:"비밀번호 변경"};
 const text = (id,value) => { $(id).textContent = value; };
-function signedOut(message="") {stopProgressPolling();csrf="";$("dashboard").hidden=true;$("login-view").hidden=false;$("password-dialog").close();$("action-dialog").close();$("password-form").reset();text("login-error",message);}
+function signedOut(message="") {pidReset();stopProgressPolling();csrf="";$("dashboard").hidden=true;$("login-view").hidden=false;$("password-dialog").close();$("action-dialog").close();$("password-form").reset();text("login-error",message);}
 async function api(path,options={}) {
   const response = await fetch(path,{credentials:"same-origin",cache:"no-store",...options,headers:{"Content-Type":"application/json","X-Admin-Request":"1",...(csrf?{"X-CSRF-Token":csrf}:{}),...(options.headers||{})}});
   let data;
@@ -34,7 +34,7 @@ function render(data){
   text("last-update","마지막 확인 · "+timeFormat(data.checked_at));
 }
 async function refresh(){ $("refresh").disabled=true;text("dashboard-error","");try{const [overview,operations]=await Promise.all([api("/api/overview"),api("/api/operations")]);render(overview);renderOperations(operations);}catch(error){text("dashboard-error",error.message);}finally{$("refresh").disabled=false;} }
-async function enter(){const session=await api("/api/session");csrf=session.csrf;text("account-name",session.username);$("login-view").hidden=true;$("dashboard").hidden=false;startProgressPolling();await pollProgress();await refresh();}
+async function enter(){const session=await api("/api/session");csrf=session.csrf;pidReset();try{const options=await api("/api/person-dictionary/options");$("pid-sensitivity").value=options.sensitivity;}catch(error){text("pid-error",error.message);}text("account-name",session.username);$("login-view").hidden=true;$("dashboard").hidden=false;startProgressPolling();await pollProgress();await refresh();}
 $("login-form").addEventListener("submit",async event=>{event.preventDefault();$("login-button").disabled=true;text("login-error","");const password=$("password").value;$("password").value="";try{await api("/api/login",{method:"POST",body:JSON.stringify({username:$("username").value,password})});await enter();}catch(error){text("login-error",error.message);}finally{$("login-button").disabled=false;}});
 $("refresh").addEventListener("click",refresh);
 $("logout").addEventListener("click",async()=>{try{await api("/api/logout",{method:"POST",body:"{}"});signedOut();}catch(error){text("dashboard-error",error.message);}});
@@ -43,10 +43,10 @@ $("password-close").addEventListener("click",()=>{$("password-dialog").close();$
 $("password-form").addEventListener("submit",async event=>{event.preventDefault();text("password-error","");if($("new-password").value!==$("confirm-password").value){text("password-error","새 비밀번호가 일치하지 않습니다.");return;}$("password-save").disabled=true;try{await api("/api/password",{method:"POST",body:JSON.stringify({current:$("current-password").value,new:$("new-password").value})});signedOut("비밀번호를 변경했습니다. 다시 로그인하세요.");}catch(error){text("password-error",error.message);}finally{$("password-save").disabled=false;}});
 enter().catch(()=>signedOut());
 
-const viewNames={overview:["운영 현황","서버 대시보드","실제 서비스와 DB 연결 상태를 확인합니다."],services:["챗봇 서비스","서비스 실행 관리","등록한 챗봇의 시작·중지·재시작을 실행합니다."],balancing:["로드밸런싱","트래픽 분산 관리","서버별 요청 분산과 점검 제외·복귀를 제어합니다."],activity:["작업 기록","접속·작업 이력","관리자 인증과 서비스 제어의 결과를 확인합니다."]};
+const viewNames={persons:["인물사전","인물사전 연결 관리","민감도별 예상 결과를 확인하고 vault.person에 반영합니다."],overview:["운영 현황","서버 대시보드","실제 서비스와 DB 연결 상태를 확인합니다."],services:["챗봇 서비스","서비스 실행 관리","등록한 챗봇의 시작·중지·재시작을 실행합니다."],balancing:["로드밸런싱","트래픽 분산 관리","서버별 요청 분산과 점검 제외·복귀를 제어합니다."],activity:["작업 기록","접속·작업 이력","관리자 인증과 서비스 제어의 결과를 확인합니다."]};
 let currentView="overview", pendingAction=null, operationBusy=false;
 function eventLabel(event){if(events[event])return events[event];const labels={start:"시작",stop:"중지",restart:"재시작",exclude:"트래픽 제외",include:"트래픽 복귀",weight:"가중치 변경"};for(const target of ["node1","node2","proxy"]){for(const action of Object.keys(labels)){if(event===target+"_"+action)return (target==="proxy"?"분산기":"챗봇 "+target.slice(-1))+" · "+labels[action];}}return "관리 작업";}
-function switchView(view){currentView=viewNames[view]?view:"overview";const label=viewNames[currentView];text("view-eyebrow",label[0]);text("view-title",label[1]);text("view-description",label[2]);for(const name of Object.keys(viewNames)){const button=$("nav-"+name);button.classList.toggle("active",name===currentView);if(name===currentView)button.setAttribute("aria-current","page");else button.removeAttribute("aria-current");}$("overview-status").hidden=currentView!=="overview";$("overview-environment").hidden=currentView!=="overview";$("services-view").hidden=currentView!=="services";$("balancing-view").hidden=currentView!=="balancing";$("activity").hidden=currentView!=="activity";}
+function switchView(view){currentView=viewNames[view]?view:"overview";const label=viewNames[currentView];text("view-eyebrow",label[0]);text("view-title",label[1]);text("view-description",label[2]);for(const name of Object.keys(viewNames)){const button=$("nav-"+name);button.classList.toggle("active",name===currentView);if(name===currentView)button.setAttribute("aria-current","page");else button.removeAttribute("aria-current");}$("overview-status").hidden=currentView!=="overview";$("overview-environment").hidden=currentView!=="overview";$("services-view").hidden=currentView!=="services";$("balancing-view").hidden=currentView!=="balancing";$("activity").hidden=currentView!=="activity";$("persons-view").hidden=currentView!=="persons";}
 for(const name of Object.keys(viewNames))$("nav-"+name).addEventListener("click",()=>{history.replaceState(null,"","#"+name);switchView(name);});
 window.addEventListener("hashchange",()=>switchView(location.hash.slice(1)));
 switchView(location.hash.slice(1));
@@ -80,3 +80,28 @@ async function pollProgress(){if(progressPollPending||$("dashboard").hidden)retu
 function startProgressPolling(){stopProgressPolling();progressPollTimer=setInterval(pollProgress,1000);}
 function stopProgressPolling(){if(progressPollTimer!==null){clearInterval(progressPollTimer);progressPollTimer=null;}}
 $("wait-settings").addEventListener("submit",async event=>{event.preventDefault();if(operationBusy)return;const seconds=Number($("drain-timeout").value);if(!Number.isInteger(seconds)||seconds<15||seconds>120){text("wait-settings-result","15~120초의 정수로 입력하세요.");return;}$("save-drain-timeout").disabled=true;try{const result=await api("/api/operations/settings",{method:"POST",body:JSON.stringify({drain_timeout_seconds:seconds})});text("wait-settings-result","최대 대기 시간을 "+result.drain_timeout_seconds+"초로 저장했습니다.");}catch(error){text("wait-settings-result",error.message);}finally{$("save-drain-timeout").disabled=operationBusy;}});
+
+
+let pidPlan=null,pidBusy=false;
+const pidActions={create:'신규 생성',merge:'기존 PID 연결',unchanged:'기존 연결 유지',hold:'인물 보류',hold_feature:'정보 보류',hold_document:'문서 보류',manual:'관리자 판정 유지'};
+function pidReset(){pidPlan=null;$("pid-confirm").checked=false;$("pid-apply").disabled=true;$("pid-events").replaceChildren();text("pid-summary","");}
+$("pid-sensitivity").addEventListener("change",()=>{pidReset();text("pid-status","민감도가 변경되었습니다. 다시 미리보기를 실행하세요.");});
+$("pid-confirm").addEventListener("change",()=>{$("pid-apply").disabled=pidBusy||!pidPlan||!$("pid-confirm").checked;});
+async function pidRun(apply){
+ if(pidBusy||apply&&(!pidPlan||!$("pid-confirm").checked))return;
+ const sensitivity=$("pid-sensitivity").value;
+ const plan=pidPlan;pidBusy=true;$("pid-preview").disabled=true;$("pid-apply").disabled=true;$("pid-sensitivity").disabled=true;$("pid-confirm").disabled=true;
+ text("pid-error","");text("pid-status",apply?"검토한 결과를 반영하고 있습니다…":"원문을 탐지하고 인물별 연결을 분석하고 있습니다. 모델 로딩으로 시간이 걸릴 수 있습니다…");
+ try{
+  const data=await api('/api/person-dictionary/'+(apply?'apply':'preview'),{method:'POST',body:JSON.stringify({sensitivity,plan,confirmed:apply})});
+  pidPlan=apply?null:data.plan;$("pid-confirm").checked=false;
+  text("pid-status",apply?"vault.person 반영을 완료했습니다.":"미리보기 완료 · DB는 변경하지 않았습니다. 아래 결과를 검토하세요.");
+  const counts=Object.entries(data.actions).map(([key,value])=>(pidActions[key]||key)+' '+value+'건').join(' · ');
+  if(data.query_token_alignment_warning)text('pid-error','기존 DB 토큰을 재사용한 정보가 있습니다. 현재 HMAC 설정으로 질문을 가명처리했을 때 같은 토큰이 되는지 별도 확인이 필요합니다.');
+  text("pid-summary",data.profile_description+' / 문서 '+data.documents+'건 / PID '+data.before_people+' → '+data.after_people+' / '+counts);
+  $("pid-events").replaceChildren();
+  for(const row of data.events){const tr=document.createElement('tr');for(const value of [row.doc_id,pidActions[row.action]||row.action,row.pid!==null&&row.pid!==undefined?(row.pid<0?'신규 예정 '+(-row.pid):String(row.pid)):(row.candidates||[]).join(', '),row.message,JSON.stringify(row.values||{token:row.token||''})])tr.append(element('td','',value));$("pid-events").append(tr);}
+ }catch(error){pidPlan=null;text("pid-error",error.message);text("pid-status",apply?"반영 여부를 확인한 후 다시 미리보기를 실행하세요.":"미리보기를 완료하지 못했습니다.");}
+ finally{pidBusy=false;$("pid-preview").disabled=false;$("pid-sensitivity").disabled=false;$("pid-confirm").disabled=false;$("pid-apply").disabled=true;}
+}
+$("pid-preview").addEventListener("click",()=>pidRun(false));$("pid-apply").addEventListener("click",()=>pidRun(true));

@@ -1,4 +1,5 @@
 """적재 파이프라인: 문서 → 탐지 → 가명처리 → 청크 → 임베딩 → rag.chunks / vault.token_map
+(데이터 버전 v2 이상이면 rag_v2.chunks / vault_v2.token_map. 문서 권한 rag.document_info 는 공용)
 
 사용법
     python -m starter.ingest --data data/holdout_labeled.jsonl --reset
@@ -50,7 +51,16 @@ def main():
     ap.add_argument("--no-resolver", action="store_true", help="동명이인 구분 끄기 (실전 2 방식: 이름 문자열 = 토큰)")
     ap.add_argument("--max-chars", type=int, default=600)
     ap.add_argument("--no-region", action="store_true", help="SEARCH_REGION=1 이어도 지역 토큰을 만들지 않음")
+    ap.add_argument("--data-version", default=config.DATA_VERSION,
+                    help="적재할 데이터 버전 (기본: .env 의 DATA_VERSION). 키 교체 때 새 버전(v2 …)에 미리 적재")
+    ap.add_argument("--key-env", default="HMAC_KEY", help="가명처리에 쓸 키가 든 .env 항목 이름 (키 교체 때 NEW_HMAC_KEY)")
     a = ap.parse_args()
+    from .data_version import prepare_target, DataVersionError
+    try:
+        prepare_target(a.data_version, a.key_env)
+    except DataVersionError as error:
+        raise SystemExit("중단: " + str(error))
+    print(f"데이터 버전 {config.DATA_VERSION} ({config.RAG_DATA_SCHEMA}.chunks / {config.VAULT_DATA_SCHEMA}.token_map) 에 적재합니다.")
 
     if pii_pipeline.IS_DEMO and config.EMBED_PROVIDER == "api":
         print("⚠ 데모용 마스킹은 이름 등을 탐지하지 못해 원문 일부가 임베딩 API로 전송됩니다. "
@@ -58,7 +68,8 @@ def main():
 
     docs = load_docs(a.data, a.limit)
     config.OUT_DIR.mkdir(exist_ok=True)
-    pseudo_path = config.OUT_DIR / f"pseudo_{Path(a.data).stem}.jsonl"
+    pseudo_path = config.OUT_DIR / (f"pseudo_{Path(a.data).stem}.jsonl" if config.DATA_VERSION == "v1"
+                                    else f"pseudo_{Path(a.data).stem}_{config.DATA_VERSION}.jsonl")   # 버전별 따로 보관
 
     t0 = time.perf_counter()
     # 1차: 탐지 + 기본 가명처리 → 동명이인 구분(resolver)이 문서 전체를 보고 사람 단위로 묶음
@@ -113,6 +124,12 @@ def main():
     with db.rag_conn() as conn, conn.cursor() as cur:
         if a.reset:
             cur.execute("TRUNCATE rag.chunks")
+        # rag.chunks.doc_id 는 rag.document_info 를 참조(FK)하므로 문서를 먼저 '미확정'으로 등록합니다.
+        # 이미 있는 문서는 건드리지 않아 관리자가 확정한 담당자·팀 정보를 덮어쓰지 않습니다.
+        cur.executemany(
+            """INSERT INTO rag.document_info (document_id, document_type, metadata_status)
+               VALUES (%s, %s, 'PENDING') ON CONFLICT (document_id) DO NOTHING""",
+            [(d["id"], d.get("doc_type")) for d in docs])
         cur.executemany(
             """INSERT INTO rag.chunks (chunk_id, doc_id, chunk_idx, doc_type, masked_text, tokens, embedding)
                VALUES (%(chunk_id)s, %(doc_id)s, %(chunk_idx)s, %(doc_type)s, %(masked_text)s, %(tokens)s, %(embedding)s)

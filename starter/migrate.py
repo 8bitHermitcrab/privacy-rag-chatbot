@@ -20,8 +20,8 @@ log = logging.getLogger(__name__)
 
 
 TABLES = {
-    "auth": ["employee_info", "permission_change_log", "role_info", "team_info", "user_info", "team_position_policy"],
-    "rag": ["chunks", "document_info"], "vault": ["person", "token_map"],
+    "auth": ["employee_info", "permission_change_log", "role_info", "team_info", "user_info", "team_position_policy", "restore_log", "data_version"],
+    "rag": ["chunks", "document_info"], "vault": ["person", "token_map", "person_mention"],
 }
 
 QUERIES = {
@@ -125,6 +125,12 @@ def prepare_existing_database():
                     ScriptDirectory.from_config(cfg).get_revision(version)
                 except Exception:
                     raise RuntimeError('현재 소스에 없는 DB 버전입니다: '+version) from None
+                # 0003 이후 버전도 해당 버전의 구조 계약으로 빠진 nullable 열 등을 보충합니다.
+                name=f'{version}_contract.json'
+                if (ROOT/'migrations'/name).is_file():
+                    if differences(capture(c),contract(name)):
+                        reconcile(c,capture,name)
+                    verify_baseline(c,name)
             if c.exec_driver_sql("SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid='public.alembic_version'::regclass").scalar() != 'migration_user':
                 c.exec_driver_sql('ALTER TABLE public.alembic_version OWNER TO migration_user')
             for schema,owner in OWNERS.items():
@@ -197,9 +203,10 @@ def migrate(*, engine=None, check=False, config_path=None):
                         raise RuntimeError("DB에 미적용 변경이 있습니다. 마이그레이션을 실행하세요.")
                     if not check:
                         command.upgrade(cfg,"head")
-                    # 현재 버전 0001에서는 운영 중의 구조 변형도 검증합니다.
-                    if head in ("0001", "0002"):
-                        verify_baseline(connection, "0002_contract.json" if head == "0002" else "baseline_contract.json")
+                    # 최신 버전의 구조 계약 파일이 있으면 운영 중의 구조 변형도 검증합니다.
+                    name = "baseline_contract.json" if head == "0001" else f"{head}_contract.json"
+                    if (ROOT / "migrations" / name).is_file():
+                        verify_baseline(connection, name)
                     dim=connection.exec_driver_sql("SELECT format_type(atttypid,atttypmod) FROM pg_attribute WHERE attrelid='rag.chunks'::regclass AND attname='embedding'").scalar()
                     expected_dim=int(os.getenv("EMBED_DIM","1024"))
                     if dim.split('.')[-1]!=f"vector({expected_dim})":
