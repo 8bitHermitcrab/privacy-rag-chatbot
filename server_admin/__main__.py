@@ -66,6 +66,10 @@ def docker_executable():
     raise StartError('Docker가 설치되어 있지 않거나 실행 경로를 찾지 못했습니다.')
 
 def start_desktop():
+    if sys.platform=='darwin':   # macOS: Docker Desktop 앱 실행 (창 없이 백그라운드로 켜짐)
+        if command(['open','-a','Docker'],timeout=10).returncode:
+            raise StartError('Docker Desktop을 찾지 못했습니다. 설치와 실행 상태를 확인하세요.')
+        return
     if os.name!='nt':
         raise StartError('Docker가 실행 중이 아닙니다. Docker 서비스를 먼저 실행하세요.')
     candidates=[Path(os.environ.get('ProgramFiles',r'C:\Program Files'))/'Docker/Docker/Docker Desktop.exe',
@@ -187,9 +191,25 @@ def existing_manager():
             if item.laddr.ip!='127.0.0.1' or not item.pid or not is_manager(psutil.Process(item.pid)):
                 raise StartError('9000 포트가 다른 프로그램 또는 다른 접속 설정으로 사용 중입니다. 임의 종료하지 않았습니다.')
             found=True
+    except psutil.AccessDenied:
+        return _existing_manager_without_netstat()   # macOS: root 없이는 전체 연결 목록을 못 읽음
     except psutil.Error:
         raise StartError('관리자 포트의 실행 프로그램을 확인할 권한이 없습니다.') from None
     return found
+
+def _existing_manager_without_netstat():
+    """전체 연결 목록을 못 읽을 때: 9000 포트에 아무도 없으면 False, 이 저장소의 관리자가 내 프로세스 중에 있으면 True,
+    다른 프로그램이 쓰고 있으면 지금과 같은 오류로 멈춥니다 (임의 종료하지 않음)."""
+    import psutil
+    try:
+        with socket.create_connection(('127.0.0.1', 9000), timeout=1):
+            pass
+    except OSError:
+        return False
+    for process in psutil.process_iter():
+        if is_manager(process):
+            return True
+    raise StartError('9000 포트가 다른 프로그램 또는 다른 접속 설정으로 사용 중입니다. 임의 종료하지 않았습니다.')
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):return None

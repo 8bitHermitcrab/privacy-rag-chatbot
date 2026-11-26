@@ -240,3 +240,98 @@ def person_options(request:Request):
     if value not in PROFILES:
         raise HTTPException(409,'서버의 PID_SENSITIVITY 설정을 확인하세요.')
     return {'sensitivity':value,'profiles':PROFILES}
+
+
+# ---------------------------------------------------------------- 데이터 버전 (HMAC 키 교체)
+# 서버 관리자 1인 전용. 키 값은 응답·작업 기록에 싣지 않고 지문만 보여 줍니다.
+from . import data_versions as dvm
+
+
+def _dv_call(function, *args):
+    try:
+        return function(*args)
+    except dvm.DataVersionUIError as exc:
+        raise HTTPException(409, str(exc)) from None
+    except Exception as exc:
+        from starter.data_version import DataVersionError
+        if isinstance(exc, DataVersionError):
+            raise HTTPException(409, str(exc)) from None
+        if isinstance(exc, OperationError):
+            raise HTTPException(409, str(exc)) from None
+        raise
+
+
+def _confirmed(data, expected):
+    if data.get('confirmation') != expected:
+        raise HTTPException(400, '작업 확인이 필요합니다.')
+
+
+@app.get('/api/data-versions')
+async def data_versions(request: Request):
+    authenticated(request, touch=False)
+    return await run_in_threadpool(_dv_call, dvm.overview)
+
+
+@app.get('/api/data-versions/build')
+def data_version_build_status(request: Request):
+    authenticated(request, touch=False)
+    return dvm.build.snapshot()
+
+
+@app.post('/api/data-versions/build')
+async def data_version_build(request: Request):
+    mutation(request)
+    data = await payload(request)
+    _confirmed(data, 'build')
+    source = data.get('source')
+    result = await run_in_threadpool(_dv_call, dvm.start_build, source, data.get('key'), data.get('key_confirm'))
+    audit('dv_build_start')
+    return result
+
+
+@app.post('/api/data-versions/switch')
+async def data_version_switch(request: Request):
+    mutation(request)
+    data = await payload(request)
+    node, version = field(data, 'node', 16), field(data, 'version', 8)
+    _confirmed(data, node + ':' + version)
+    return await run_in_threadpool(_dv_call, dvm.switch, node, version)
+
+
+@app.post('/api/data-versions/promote')
+async def data_version_promote(request: Request):
+    mutation(request)
+    data = await payload(request)
+    version = field(data, 'version', 8)
+    _confirmed(data, 'promote:' + version)
+    return await run_in_threadpool(_dv_call, dvm.promote, version)
+
+
+@app.post('/api/data-versions/retire')
+async def data_version_retire(request: Request):
+    mutation(request)
+    data = await payload(request)
+    version = field(data, 'version', 8)
+    _confirmed(data, 'retire:' + version)
+    return await run_in_threadpool(_dv_call, dvm.retire, version)
+
+
+@app.post('/api/data-versions/drop')
+async def data_version_drop(request: Request):
+    mutation(request)
+    data = await payload(request)
+    version = field(data, 'version', 8)
+    _confirmed(data, 'drop:' + version)
+    return await run_in_threadpool(_dv_call, dvm.drop, version, data.get('typed'))
+
+
+# ---------------------------------------------------------------- 모니터링 (분산기 요청 기록)
+from . import monitoring
+
+
+@app.get('/api/monitoring')
+async def monitoring_summary(request: Request, minutes: int = 60):
+    authenticated(request, touch=False)
+    result = await run_in_threadpool(monitoring.summary, minutes)
+    result['mixed'] = await run_in_threadpool(monitoring.mixed_state)
+    return result

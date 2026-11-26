@@ -159,8 +159,15 @@ def start_process(target):
     if listening(port):
         raise OperationError("포트를 다른 프로세스가 사용 중입니다. 임의로 종료하지 않았습니다.")
     flags={"creationflags":subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP} if os.name=="nt" else {"start_new_session":True}
+    # 챗봇 서버는 서버별로 지정한 데이터 버전의 키·DATA_VERSION 을 이 프로세스 환경으로만 받습니다(.env 보다 우선).
+    environment=None
+    if target in NODES:
+        from .data_versions import node_env, DataVersionUIError
+        try:overrides=node_env(target)
+        except DataVersionUIError as exc:raise OperationError(str(exc)) from None
+        if overrides:environment={**os.environ,**overrides}
     with (state_dir()/(target+".stdout.log")).open("ab") as out, (state_dir()/(target+".stderr.log")).open("ab") as error:
-        process=subprocess.Popen(argv(target),cwd=REPO,stdin=subprocess.DEVNULL,stdout=out,stderr=error,**flags)
+        process=subprocess.Popen(argv(target),cwd=REPO,stdin=subprocess.DEVNULL,stdout=out,stderr=error,env=environment,**flags)
     tracked=psutil.Process(process.pid)
     records=registry()
     records[target]={"pid":process.pid,"created":tracked.create_time()}

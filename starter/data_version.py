@@ -150,12 +150,14 @@ def prepare_target(version, key_env="HMAC_KEY", engine=None):
     return version
 
 
-def create(version, key_env, engine=None):
-    """빈 버전 스키마를 기본 표와 같은 구조로 만듭니다. 외래키는 같은 버전 표(또는 공용 rag.document_info)를 가리킵니다."""
+def create(version, key_env=None, engine=None, key=None):
+    """빈 버전 스키마를 기본 표와 같은 구조로 만듭니다. 외래키는 같은 버전 표(또는 공용 rag.document_info)를 가리킵니다.
+    키는 .env 항목 이름(key_env) 또는 값(key, 서버 관리자 화면용)으로 받습니다."""
     if version == "v1":
         raise DataVersionError("v1 은 기본 스키마라 새로 만들 수 없습니다.")
     rag, vault = _schemas(version)
-    fp = fingerprint(key_from(key_env))
+    key_env = key_env or "입력한 키"
+    fp = fingerprint(key if key is not None else key_from(key_env))
     from .db import data_sql
     engine, own = _engine(engine)
     try:
@@ -207,9 +209,10 @@ def counts(c, version):
     return out
 
 
-def ready(version, key_env, engine=None):
+def ready(version, key_env=None, engine=None, key=None):
     """적재가 끝난 버전을 확인하고 준비 완료(READY)로 바꿉니다."""
-    key = key_from(key_env)
+    key = key if key is not None else key_from(key_env)
+    key_env = key_env or "입력한 키"
     engine, own = _engine(engine)
     try:
         with engine.begin() as c:

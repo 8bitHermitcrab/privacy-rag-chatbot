@@ -135,6 +135,110 @@ class LauncherTest(unittest.TestCase):
             self.assertEqual(spawn.call_args.args[0],[str(base/'Docker Desktop.exe')])
 
 
+class DataVersionAdminTest(unittest.TestCase):
+    """데이터 버전(HMAC 키 교체) 관리: 키 보관·서버별 환경·.env 갱신 규칙 (DB 없이)."""
+    def setUp(self):
+        from server_admin import data_versions as dvm
+        self.dvm = dvm
+        self.directory = tempfile.TemporaryDirectory()
+        self.environment = mock.patch.dict(os.environ, {'SERVER_ADMIN_STATE_DIR': self.directory.name})
+        self.environment.start()
+        op.settings()
+
+    def tearDown(self):
+        self.environment.stop()
+        self.directory.cleanup()
+
+    def test_node_env_needs_stored_key(self):
+        dvm = self.dvm
+        self.assertEqual(dvm.node_env('node1'), {})
+        dvm._assign('node1', 'v2')
+        with self.assertRaises(dvm.DataVersionUIError):
+            dvm.node_env('node1')
+        dvm._save_key('v2', 'k' * 40)
+        self.assertEqual(dvm.node_env('node1'), {'DATA_VERSION': 'v2', 'HMAC_KEY': 'k' * 40})
+        self.assertEqual(dvm.node_env('node2'), {})
+
+    def test_key_rules(self):
+        dvm = self.dvm
+        self.assertEqual(dvm.check_key('A' * 32, 'A' * 32), 'A' * 32)
+        for key, confirm in (('short', 'short'), ('A' * 31 + ' ', 'A' * 31 + ' '), ('A' * 32, 'B' * 32), ('A' * 30 + '\nX=1', 'A' * 30 + '\nX=1')):
+            with self.assertRaises(dvm.DataVersionUIError):
+                dvm.check_key(key, confirm)
+
+    def test_rewrite_env_keeps_other_lines(self):
+        path = Path(self.directory.name) / 'sample.env'
+        path.write_text('# 설명\nPOSTGRES_DB=pii_rag\nHMAC_KEY=old\n# HMAC_KEY=주석은 그대로\nNEW_HMAC_KEY=new\n', encoding='utf-8')
+        self.dvm.rewrite_env(path, {'HMAC_KEY': 'new', 'DATA_VERSION': 'v2'}, remove={'NEW_HMAC_KEY'})
+        self.assertEqual(path.read_text(encoding='utf-8').splitlines(),
+                         ['# 설명', 'POSTGRES_DB=pii_rag', 'HMAC_KEY=new', '# HMAC_KEY=주석은 그대로', 'DATA_VERSION=v2'])
+
+    def test_next_version(self):
+        self.assertEqual(self.dvm.next_version([{'version': 'v1'}, {'version': 'v2'}]), 'v3')
+        self.assertEqual(self.dvm.next_version([]), 'v2')
+
+    def test_start_process_gives_node_its_version_only(self):
+        dvm = self.dvm
+        dvm._assign('node1', 'v2'); dvm._save_key('v2', 'k' * 40)
+        seen = {}
+        def spawn(args, **kwargs):
+            seen[args[-3] if '--port' not in args else args[args.index('--port') + 1]] = kwargs.get('env')
+            return SimpleNamespace(pid=4321)
+        with mock.patch.object(op, 'listening', return_value=False), mock.patch.object(op, 'healthy', return_value=True), \
+                mock.patch.object(op.subprocess, 'Popen', side_effect=spawn), \
+                mock.patch.object(op.psutil, 'Process', return_value=SimpleNamespace(create_time=lambda: 1.0)):
+            op.start_process('node1'); op.start_process('node2')
+        self.assertEqual((seen['8001']['HMAC_KEY'], seen['8001']['DATA_VERSION']), ('k' * 40, 'v2'))
+        self.assertIsNone(seen['8002'])   # 지정이 없는 서버는 .env 를 그대로 따름
+
+    def test_promote_and_retire_need_all_nodes(self):
+        dvm = self.dvm
+        with mock.patch.object(dvm, 'running_version', return_value='v1'), mock.patch.object(dvm, 'env_default_version', return_value='v1'):
+            with self.assertRaises(dvm.DataVersionUIError):
+                dvm.promote('v2')
+            with self.assertRaises(dvm.DataVersionUIError):
+                dvm.retire('v1')
+
+    def test_drop_needs_typed_name_and_recent_backup(self):
+        dvm = self.dvm
+        with self.assertRaises(dvm.DataVersionUIError):
+            dvm.drop('v1', 'v2')
+        with mock.patch.object(dvm, 'last_backup', return_value={'age_hours': 30}):
+            with self.assertRaises(dvm.DataVersionUIError):
+                dvm.drop('v1', 'v1')
+
+
+class MonitoringTest(unittest.TestCase):
+    """분산기 요청 기록 → 서버별 집계 (질문 내용·쿼리는 기록하지 않음)."""
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.environment = mock.patch.dict(os.environ, {'SERVER_ADMIN_STATE_DIR': self.directory.name})
+        self.environment.start()
+
+    def tearDown(self):
+        self.environment.stop()
+        self.directory.cleanup()
+
+    def test_record_and_summary(self):
+        from server_admin import monitoring
+        started = time.monotonic()
+        proxy.record('node1', 'v1', 'api/chat', 'POST', 200, started)
+        proxy.record('node2', 'v2', 'chat', 'GET', 200, started)
+        proxy.record('node2', None, 'api/chat', 'POST', 0, started)
+        proxy.record(None, None, 'api/info', 'GET', 503, started)
+        line = (Path(self.directory.name) / proxy.REQUEST_LOG).read_text(encoding='utf-8').splitlines()[0]
+        self.assertEqual(set(json.loads(line)), {'t', 'node', 'version', 'kind', 'method', 'status', 'ms'})
+        result = monitoring.summary(15)
+        self.assertEqual(result['total'], 4)
+        self.assertEqual((result['nodes']['node1']['requests'], result['nodes']['node1']['chat']), (1, 1))
+        self.assertEqual((result['nodes']['node2']['requests'], result['nodes']['node2']['errors']), (2, 1))
+        self.assertEqual(result['nodes']['none']['errors'], 1)
+        self.assertEqual(result['versions_seen'], ['v1', 'v2'])
+        self.assertEqual(sum(result['errors']), 2)
+        self.assertEqual(proxy.kind_of('admin'), 'admin')
+        self.assertEqual(proxy.kind_of('assets/x.js'), 'page')
+
+
 class OperationSafetyTest(unittest.TestCase):
 
     def setUp(self):

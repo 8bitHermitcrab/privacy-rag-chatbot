@@ -57,6 +57,7 @@ WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 LOGIN = os.path.join(WEB_DIR, "login.html")     # 시작(로그인) 화면
 LION = os.path.join(WEB_DIR, "index.html")      # 어흥이 버전 (기본)
 SIMPLE = os.path.join(WEB_DIR, "simple.html")   # 심플 버전
+START = os.path.join(WEB_DIR, "start.html")   # 로그인 후 시작 화면 (챗봇 / 관리자 선택)
 
 
 class Ask(BaseModel):
@@ -77,9 +78,6 @@ def index(request: Request):
 @app.get("/simple")
 def simple(request: Request):
     return authenticated_chat_page(request, SIMPLE)
-
-
-START = os.path.join(WEB_DIR, "login2.html")   # 로그인 후 시작 화면 (챗봇 / 관리자 선택)
 
 
 @app.get("/start")
@@ -179,7 +177,8 @@ async def business_headers(request, call_next):
         response = await call_next(request)
     except (psycopg.Error, FileNotFoundError):
         response = JSONResponse({'detail': 'DB 또는 업무 계정 설정을 확인하세요.'}, status_code=503)
-    if request.url.path.startswith('/api/') or request.url.path in ('/admin', '/login', '/start', '/chat', '/chat/login', '/simple'):
+    if request.url.path.startswith('/api/') or request.url.path in ('/admin', '/login', '/start', '/chat', '/simple'):
+        response.headers['X-RAG-Data-Version'] = config.DATA_VERSION   # 분산기 모니터링이 서버별 데이터 버전을 기록
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'same-origin'
