@@ -153,6 +153,7 @@ async def business_headers(request, call_next):
         response = await call_next(request)
     except (psycopg.Error, FileNotFoundError):
         response = JSONResponse({'detail': 'DB 또는 업무 계정 설정을 확인하세요.'}, status_code=503)
+    response.headers['X-RAG-Data-Version'] = config.DATA_VERSION   # 분산기 모니터링이 서버별 데이터 버전을 기록
     if request.url.path.startswith('/api/') or request.url.path in ('/admin', '/login', '/chat', '/simple'):
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'

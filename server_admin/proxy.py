@@ -10,6 +10,31 @@ from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 from .operations import NODES, PROXY_PORT, settings, healthy
+from .security import state_dir
+
+# ---- 요청 기록 (모니터링용): 시각·서버·데이터 버전·종류·응답 코드·걸린 시간만 남깁니다.
+#      질문 내용·주소의 쿼리·쿠키·사용자 정보는 기록하지 않습니다. 5MB 가 넘으면 이전 파일 하나만 남기고 새로 씁니다.
+REQUEST_LOG='requests.jsonl'
+LOG_LOCK=threading.Lock()
+
+def kind_of(path):
+    if path=='api/chat':return 'chat'
+    if path=='admin' or path.startswith('api/admin'):return 'admin'
+    if path.startswith('api/'):return 'api'
+    return 'page'
+
+def record(node,version,path,method,status,started):
+    import json
+    entry={'t':round(time.time(),3),'node':node,'version':version,'kind':kind_of(path),'method':method,
+           'status':status,'ms':round((time.monotonic()-started)*1000)}
+    try:
+        with LOG_LOCK:
+            target=state_dir()/REQUEST_LOG
+            if target.exists() and target.stat().st_size>5*1024*1024:
+                target.replace(state_dir()/(REQUEST_LOG+'.previous'))
+            with target.open('a',encoding='utf-8') as handle:handle.write(json.dumps(entry)+'\n')
+    except OSError:
+        pass   # 기록 실패가 사용자 요청을 막지 않게 합니다
 
 app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None)
 LOCK=threading.RLock()
@@ -55,6 +80,7 @@ async def route(request:Request):
         return {'ok':True,'active':COUNTS[value['node']]['active']}
 
 def forward(method,path,query,body,headers):
+    started=time.monotonic()
     config=settings()
     online={node:healthy(node) for node in NODES}
     with LOCK:
@@ -88,14 +114,17 @@ def forward(method,path,query,body,headers):
                     for cookie in result.raw.headers.getlist('Set-Cookie'):
                         if cookie.split('=',1)[0].strip() == 'rag_business':
                             response.headers.append('set-cookie',cookie)
+                    record(node,result.headers.get('X-RAG-Data-Version'),path,method,result.status_code,started)
                     return response
         except requests.RequestException:
             with LOCK:COUNTS[node]['errors']+=1;COUNTS[node]['healthy']=False
+            record(node,None,path,method,0,started)
             candidates.remove(node)
             # POST를 자동 재전송하면 LLM 호출·등록이 중복될 수 있어 GET/HEAD만 우회합니다.
             if method not in ('GET','HEAD'):break
         finally:
             with LOCK:COUNTS[node]['active']-=1
+    record(None,None,path,method,503,started)
     return JSONResponse({'detail':'요청을 처리할 정상 서버가 없습니다.'},status_code=503)
 
 @app.api_route('/{path:path}',methods=['GET','POST','HEAD','OPTIONS'])
