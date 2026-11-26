@@ -1,4 +1,4 @@
-"""detect_boost · person_resolver 회귀 테스트 (데이터셋과 무관한 직접 만든 예문만 사용)
+"""detect_boost · 가명처리 회귀 테스트 (데이터셋과 무관한 직접 만든 예문만 사용)
 
     python -m pytest tests/ -q        또는        python tests/test_detect_boost.py
 """
@@ -11,7 +11,6 @@ os.environ.setdefault("HMAC_KEY", "test-key")
 
 from starter import pii_pipeline as P                      # noqa: E402
 from starter.detect_boost import enhance                   # noqa: E402
-from starter.person_resolver import PersonResolver         # noqa: E402
 from starter.rules_detector import detect as rule_detect   # noqa: E402
 
 
@@ -61,42 +60,15 @@ def test_address_boundary():
     assert found(t, "address") == ["대전광역시 서구 둔산로 45, 702호 (둔산동)", "충청북도 청주시 상당구 낭성면 33-1"]
 
 
-def test_homonym_resolver(monkeypatch):
-    monkeypatch.setattr(P, "BOOST_PERSON", True)   # 규칙 탐지(use_model=False)로 이름을 잡으려면 이름 보강이 켜져 있어야 함 (.env 와 무관하게)
-    docs = {
-        "A1": "[부고] 고객센터 마준기 대리 장인상\n연락처: 마준기 대리 010-1111-2222",
-        "A2": "소명자: 고객센터 / 대리 / 마준기",
-        "B1": "마준기 고객이 한도 상향을 문의함. 연락처 010-3333-4444",
-        "B2": "1. 신청인: 마준기 (연락처 010-3333-4444)",
-        "C1": "총무팀 반서윤 과장이 승인함.",
-    }
-    P.LINK_GIVEN_NAMES = False
-    staged = []
-    for i, t in docs.items():
-        sp = P.detect(t, use_model=False)
-        staged.append({"id": i, "text": t, "spans": sp, "records": P.pseudonymize(t, sp)[1]})
-    res = PersonResolver(P._token).fit(staged)
-    tok = {}
-    for st in staged:
-        _, recs = P.pseudonymize(st["text"], st["spans"], override=res.overrides(st["id"]))
-        tok[st["id"]] = {r["original"]: r["token"] for r in recs if r["label"] == "person"}
-    assert tok["A1"]["마준기"] == tok["A2"]["마준기"]                 # 같은 직원
-    assert tok["B1"]["마준기"] == tok["B2"]["마준기"]                 # 같은 고객 (전화번호 공유)
-    assert tok["A1"]["마준기"] != tok["B1"]["마준기"]                 # 동명이인 구분
-    assert tok["C1"]["반서윤"] == P._token("person", "반서윤")       # 한 사람뿐이면 기존 토큰 그대로
-
-    q = "직원 마준기 법인카드 소명"
-    sp = P.detect(q, use_model=False)
-    rec = P.pseudonymize(q, sp)[1]
-    cands, amb = res.query_candidates(q, rec[0], rec)
-    assert cands == [tok["A1"]["마준기"]] and not amb
-    q = "마준기 관련 문서"
-    sp = P.detect(q, use_model=False)
-    rec = P.pseudonymize(q, sp)[1]
-    if rec:   # 질의에 단서가 없으면 후보 전부 + 동명이인 표시
-        cands, amb = res.query_candidates(q, rec[0], rec)
-        assert amb and len(cands) == 2
-
+def test_homonym_same_base_token():
+    """동명이인 구분은 인물사전(PID)이 맡으므로 가명처리 토큰은 이름 하나에 하나뿐이어야 함.
+    (인물사전은 문서를 다시 가명처리해 DB 본문과 대조하므로 토큰이 달라지면 '본문 불일치'로 보류됨)"""
+    a = "고객센터 마준기 대리가 처리함."
+    b = "마준기 고객이 한도 상향을 문의함."
+    sp = lambda t: [{"label": "person", "start": t.index("마준기"), "end": t.index("마준기") + 3}]
+    ta = P.pseudonymize(a, sp(a))[1][0]["token"]
+    tb = P.pseudonymize(b, sp(b))[1][0]["token"]
+    assert ta == tb == P._token("person", "마준기")
 
 def test_model_ensemble_logic():
     """실제 모델 대신 가짜 확률로 앙상블 로직만 확인"""
@@ -195,17 +167,16 @@ def test_boundary_spaced_compound_and_bad_address():
         assert got == [("address", "경기도 용인시 수지구 죽전동 779-15"), ("person", "선우 이안")], got
 
 
-def test_resolver_single_char_given_links_to_full():
-    t = "송금인: 반린 (010-5094-3471)\n송금액: USD 3,000\n\n린 님이 유학 중인 가족에게 보내는 생활비"
-    sp = [{"label": "person", "start": t.index("반린"), "end": t.index("반린") + 2},
+def test_given_name_links_to_full_in_same_doc():
+    """같은 문서 안 '지영'(이름만)은 후보가 하나뿐일 때 '최지영'과 같은 토큰 (가명처리 기본 동작)"""
+    t = "신청인: 최지영 (010-5094-3471)\n\n지영 님이 보낸 서류를 확인함"
+    sp = [{"label": "person", "start": t.index("최지영"), "end": t.index("최지영") + 3},
           {"label": "phone_number", "start": t.index("010"), "end": t.index("010") + 13},
-          {"label": "person", "start": t.index("린 님"), "end": t.index("린 님") + 1}]
-    P.LINK_GIVEN_NAMES = False
-    res = PersonResolver(P._token).fit([{"id": "X", "text": t, "spans": sp, "records": P.pseudonymize(t, sp)[1]}])
-    _, rec = P.pseudonymize(t, sp, override=res.overrides("X"))
+          {"label": "person", "start": t.index("지영 님"), "end": t.index("지영 님") + 2}]
+    assert P.LINK_GIVEN_NAMES
+    _, rec = P.pseudonymize(t, sp)
     toks = {r["original"]: r["token"] for r in rec if r["label"] == "person"}
-    assert toks["반린"] == toks["린"]
-
+    assert toks["최지영"] == toks["지영"]
 
 def test_hybrid_num_union_format_check():
     from starter.hybrid_detector import combine

@@ -1,7 +1,15 @@
 """출력 재검사 테스트 (모델 없이 가짜 탐지기로)"""
 import re
 
+import pytest
+
 from starter import output_guard as G
+
+
+@pytest.fixture(autouse=True)
+def _recheck_on(monkeypatch):
+    """.env 의 RECHECK=0(운영에서 재검사 끔)과 상관없이 재검사 로직 자체를 시험합니다."""
+    monkeypatch.setattr(G, "ENABLED", True)
 
 A = "<PERSON_9b99d483>"     # 고객
 B = "<PERSON_d8034c0f>"     # 심사역

@@ -168,6 +168,22 @@ python -m starter.ingest --data data/holdout_labeled.jsonl --reset
 - 주의: 지금은 `rag.document_info`에 이미 등록된 문서 ID만 적재할 수 있습니다 (`chunks.doc_id` 외래키).
   holdout 문서는 6-1단계에서 자동 등록됩니다. 새 데이터셋 적재는 `ingest.py` 수정 후 가능합니다.
 
+## 8-1. 인물사전 만들기 (동명이인·같은 사람 연결)
+
+적재는 이름 하나를 토큰 하나로만 바꿉니다(`<PERSON_xxxxxxxx>`, 동명이인 구분 없음).
+같은 사람인지, 동명이인인지는 적재 뒤 인물사전(`vault.person`)이 판단합니다.
+
+```bash
+# 미리보기 (DB 변경 없음). 마지막에 나오는 plan 값을 복사합니다.
+python -m starter.person_dictionary --sensitivity balanced
+# 반영
+python -m starter.person_dictionary --sensitivity balanced --apply --plan <직전_plan_값>
+```
+
+- 서버 관리자 화면(`http://127.0.0.1:9000`)의 **인물사전** 메뉴에서도 같은 작업을 할 수 있습니다.
+- 보류된 항목은 업무 관리자 화면의 인물 검토에서 판정합니다.
+- 8단계를 다시 실행(재적재)했다면 이 단계도 다시 실행하세요. 인물사전은 문서를 다시 가명처리해 DB 본문과 대조합니다.
+
 ## 9. 챗봇 실행
 
 ```bash
@@ -234,7 +250,7 @@ python -m tools.dev_chat_account --create
 ## 동작 방식 요약
 
 ```
-질문 → 탐지(하이브리드 + V6 통합) → 가명처리·동명이인 처리 → 지역 토큰
+질문 → 탐지(하이브리드 + V6 통합) → 가명처리(이름 1개 = 토큰 1개) → 지역 토큰
      → 질문 임베딩 → 검색(v3: 토큰 일치 우선, 의미 검색으로 채움) → LLM 답변 → 화면
 ```
 

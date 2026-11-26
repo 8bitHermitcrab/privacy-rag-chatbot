@@ -39,39 +39,18 @@ if ITERATIVE_SCAN not in ("strict_order", "relaxed_order", "off"):
 _COLS = "doc_id, chunk_id, masked_text, tokens, 1 - (embedding <=> %s) AS sim"
 
 
-_resolver = None
-
-
-def _get_resolver():
-    """적재 때 만든 동명이인 레지스트리 (없으면 실전 2 방식 그대로)"""
-    global _resolver
-    if _resolver is None:
-        from .ingest import REGISTRY_PATH
-        from .person_resolver import PersonResolver
-        _resolver = PersonResolver.load(REGISTRY_PATH, pii_pipeline._token) if REGISTRY_PATH.exists() else False
-    return _resolver or None
-
-
 def mask_query_detail(query):
-    """질의 가명처리 + 동명이인 처리.
-    반환: {"masked", "tokens", "homonyms": [{"original", "candidates"}]}
-      - 질의에 단서('고객', '직원', 팀명, 전화번호…)가 있으면 그 사람 토큰 하나로 좁힘
-      - 단서가 없으면 후보 토큰을 모두 검색에 쓰고 homonyms 에 남김 → 챗봇이 '동명이인이 n명 있습니다' 안내"""
+    """질의 가명처리.
+    반환: {"masked", "tokens", "homonyms", "regions"}
+      - 이름은 적재 때와 같은 HMAC("person:이름") 토큰 하나로 바뀝니다.
+      - 동명이인 구분은 검색 단계에서 하지 않습니다(인물사전 PID 는 vault 에 있어 검색 계정이 읽지 않음).
+        질문의 역할 단서('고객', '직원' 등)는 아래 _rerank 가 순서 조정에만 씁니다.
+      - homonyms 는 호환을 위해 빈 목록으로 남겨 둡니다."""
     spans = pii_pipeline.detect(query)
-    _, records = pii_pipeline.pseudonymize(query, spans)
-    res, override, tokens, homonyms = _get_resolver(), {}, set(), []
-    for r in records:
-        if r["label"] == "person" and res:
-            cands, ambiguous = res.query_candidates(query, r, records)
-            override[(r["start"], r["end"])] = cands[0]
-            tokens |= set(cands)
-            if ambiguous:
-                homonyms.append({"original": r["original"], "candidates": cands})
-        else:
-            tokens.add(r["token"])
-    masked, _ = pii_pipeline.pseudonymize(query, spans, override=override)
+    masked, records = pii_pipeline.pseudonymize(query, spans)
+    tokens = sorted({r["token"] for r in records})
     regions = region.region_tokens(query) if region.REGION else []
-    return {"masked": masked, "tokens": sorted(tokens), "homonyms": homonyms, "regions": regions}
+    return {"masked": masked, "tokens": tokens, "homonyms": [], "regions": regions}
 # ───────── 역할 단서 재정렬 ─────────
 # 동명이인(같은 이름 토큰)이 있을 때, 질문의 역할 단서(고객/직원/대표)와 문서 안 그 이름의 역할을 비교해
 # 같은 역할 문서를 앞으로, 다른 역할로만 나오는 문서를 뒤로 보냅니다. 가명처리 본문만 사용합니다(vault 미사용).

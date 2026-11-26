@@ -394,7 +394,7 @@ def _token(label, normalized):
 
 
 def pseudonymize(text, spans, override=None):
-    """override: {(start, end): token} — 동명이인 구분 등으로 토큰을 바꿀 구간 (person_resolver.overrides)"""
+    """override: {(start, end): token} — 특정 구간의 토큰을 지정할 때 (현재 적재·검색에서는 쓰지 않음)"""
     spans = _drop_overlaps(spans)
     norms = [normalize(s["label"], text[s["start"]:s["end"]]) for s in spans]
 
